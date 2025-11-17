@@ -2,7 +2,7 @@
 
 This repository contains a small Python pipeline that:
 
-- scans a directory of MAG assemblies (PacBio long-read, one MAG per fasta(.gz) file),
+- scans a directory of MAG assemblies (PacBio long-read, one MAG per fasta(.gz) file; each file can contain many contigs belonging to that MAG),
 - uses **Barrnap** to extract 16S and 18S rRNA sequences from each MAG,
 - creates a CSV mapping rRNA sequences back to their MAG,
 - takes a metabarcoding CSV (full-length 16S/18S with per-sample relative abundances),
@@ -62,6 +62,9 @@ The pipeline is configured via `config.yaml`. Key fields:
 - `annotation_output_dir`: where MAG annotations are written (default: `Annotation/`).
 - `experiment_metadata_yaml`: path to experiment-level metadata in YAML
   (default: `experiment_metadata.yaml`).
+- `output_dir`: optional base directory where per-run outputs are written
+  when not overridden on the command line (useful for keeping separate
+  CoSMIC runs organised, e.g. `run_<MAGs>_<experiment>`).
 
 The `experiment_metadata_yaml` file lets you describe the CoSMIC experiment context used
 in the downstream LLM-oriented report. Example (see `experiment_metadata.yaml`):
@@ -131,20 +134,26 @@ Running the full pipeline produces:
 5. Run:
 
    ```bash
-   python cosmic_sidekick.py run --config config.yaml
+   python cosmic_sidekick.py run \
+     --config config.yaml \
+     --output-dir run_<MAGs>_<CoSMIC_experiment>
    ```
 
 6. Inspect:
-   - `barrnap_rrna_mapping.csv` / `barrnap_rrna_sequences.fasta` for rRNA extraction,
-   - `metabarcoding_to_MAG_mapping.csv` for mapping results,
-   - `Annotation/` for MAG annotations.
+   - `run_<MAGs>_<CoSMIC_experiment>/barrnap_rrna_mapping.csv` /
+     `barrnap_rrna_sequences.fasta` for rRNA extraction,
+   - `run_<MAGs>_<CoSMIC_experiment>/metabarcoding_to_MAG_mapping.csv` for mapping results,
+   - `run_<MAGs>_<CoSMIC_experiment>/Annotation/` for MAG annotations.
 7. Generate an LLM-ready composition report:
 
    ```bash
-   python cosmic_sidekick.py report --config config.yaml
+   python cosmic_sidekick.py report \
+     --config config.yaml \
+     --output-dir run_<MAGs>_<CoSMIC_experiment>
    ```
 
-   This writes `cosmic_llm_report.md`, which you can feed directly as context to an LLM.
+   This writes `run_<MAGs>_<CoSMIC_experiment>/cosmic_llm_report.md`,
+   which you can feed directly as context to an LLM.
 
 8. (Optional) Enrich the LLM report with external functional tools:
 
@@ -167,6 +176,20 @@ Running the full pipeline produces:
    or does not exist, that section is simply skipped. The resulting
    `cosmic_llm_rich_report.md` is a richer context document to drive
    LLM-based interpretation of the CoSMIC experiment.
+
+   Alternatively, if DRAM, METABOLIC, and eggNOG-mapper are installed and
+   their databases configured in your environment, `Richer_report.py` can
+   invoke them directly on your MAGs and Prokka protein FASTAs:
+
+   ```bash
+   python Richer_report.py \
+     --base-report run_<MAGs>_<CoSMIC_experiment>/cosmic_llm_report.md \
+     --mags-dir Data \
+     --annotation-dir run_<MAGs>_<CoSMIC_experiment>/Annotation \
+     --run-dram --run-metabolic --run-eggnog \
+     --threads 8 \
+     --output run_<MAGs>_<CoSMIC_experiment>/cosmic_llm_rich_report.md
+   ```
 
 ## 6. Notes and extensions
 

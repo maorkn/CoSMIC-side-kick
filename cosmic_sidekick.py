@@ -889,6 +889,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to existing rRNA mapping CSV (default: barrnap_rrna_mapping.csv).",
     )
     annotate_test_parser.add_argument(
+        "--output-dir",
+        default=None,
+        help=(
+            "Base output directory for this annotation smoke-test "
+            "(default: current directory or config output_dir)."
+        ),
+    )
+    annotate_test_parser.add_argument(
         "--num-mags",
         type=int,
         default=5,
@@ -926,6 +934,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         default="cosmic_llm_report.md",
         help="Report filename within the output directory (default: cosmic_llm_report.md).",
+    )
+    report_parser.add_argument(
+        "--output-dir",
+        default=None,
+        help=(
+            "Base output directory for this report "
+            "(default: current directory or config output_dir)."
+        ),
     )
 
     return parser
