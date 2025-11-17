@@ -1,0 +1,30 @@
+# Default configuration for cosmic_sidekick pipeline
+
+mags_dir: Data
+
+# Path to metabarcoding CSV with full-length 16S/18S and per-sample relative abundances.
+metabarcoding_csv: metabarcoding.csv
+
+# Column in metabarcoding CSV with a unique identifier per sequence (e.g. ASV/OTU ID).
+metabarcoding_id_column: id
+
+# Column in metabarcoding CSV containing the nucleotide sequence.
+metabarcoding_sequence_column: sequence
+
+# Optional explicit list of abundance columns. If null, they are auto-detected
+# as all numeric columns except id and sequence.
+metabarcoding_abundance_columns: null
+
+# Identity threshold for mapping metabarcoding sequences to MAG rRNA sequences.
+identity_threshold: 0.97
+
+# Barrnap kingdoms to scan for rRNA genes.
+barrnap_kingdoms:
+  - bac
+  - arc
+  - euk
+
+# Annotation tool configuration
+annotation_tool: prokka
+annotation_output_dir: Annotation
+
