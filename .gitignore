@@ -2,6 +2,7 @@
 Data/
 Annotation/
 venv/
+.venv/
 
 # Common Python artifacts (optional safety)
 __pycache__/
