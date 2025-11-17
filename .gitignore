@@ -3,6 +3,8 @@ Data/
 Annotation/
 venv/
 .venv/
+barrnap_rrna_mapping.csv
+barrnap_rrna_sequences.fasta
 
 # Common Python artifacts (optional safety)
 __pycache__/
