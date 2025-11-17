@@ -6,7 +6,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple, Set
 
 import pandas as pd
 import yaml
@@ -349,6 +349,7 @@ def run_prokka_on_mags(
     mags_by_id: Dict[str, Path],
     mag_ids_to_annotate: Sequence[str],
     out_dir: Path,
+    mag_to_contigs: Optional[Dict[str, Set[str]]] = None,
 ):
     from shutil import which
 
@@ -373,18 +374,51 @@ def run_prokka_on_mags(
             print(f"Annotation already exists for {mag_id} at {mag_out}, skipping.")
             continue
 
-        # Prokka prefers uncompressed fasta
-        if str(mag_path).endswith(".gz"):
+        # If a contig filter is provided for this MAG, restrict annotation
+        # to only those contigs (saves time and focuses on CoSMIC-linked regions).
+        contig_filter: Optional[Set[str]] = None
+        if mag_to_contigs is not None:
+            contig_filter = mag_to_contigs.get(mag_id)
+
+        tmp_in: Optional[Path] = None
+
+        if contig_filter:
+            # Build temporary FASTA containing only the selected contigs.
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".fa", delete=False
             ) as tmp_fa:
-                with open_fasta_for_seqio(mag_path) as handle:
-                    tmp_fa.write(handle.read())
                 tmp_in = Path(tmp_fa.name)
+                kept_any = False
+                with open_fasta_for_seqio(mag_path) as handle:
+                    for rec in SeqIO.parse(handle, "fasta"):
+                        if rec.id in contig_filter:
+                            SeqIO.write(rec, tmp_fa, "fasta")
+                            kept_any = True
+            if not kept_any:
+                # No contigs to annotate for this MAG under this filter.
+                if tmp_in is not None:
+                    try:
+                        tmp_in.unlink()
+                    except Exception:
+                        pass
+                print(
+                    f"No contigs with CoSMIC-linked rRNA hits found for MAG {mag_id}; skipping.",
+                    file=sys.stderr,
+                )
+                continue
             input_path = tmp_in
         else:
-            input_path = mag_path
-            tmp_in = None
+            # Prokka prefers uncompressed fasta; if needed, write a temporary copy.
+            if str(mag_path).endswith(".gz"):
+                with tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".fa", delete=False
+                ) as tmp_fa:
+                    with open_fasta_for_seqio(mag_path) as handle:
+                        tmp_fa.write(handle.read())
+                    tmp_in = Path(tmp_fa.name)
+                input_path = tmp_in
+            else:
+                input_path = mag_path
 
         cmd = [
             "prokka",
@@ -467,7 +501,21 @@ def run_pipeline(args: argparse.Namespace):
             if p.suffix in {".fa", ".fasta", ".fna", ".gz"}:
                 mags_by_id[get_mag_id(p)] = p
         mag_ids_to_annotate = mapping_df["mag_id"].unique().tolist()
-        run_prokka_on_mags(mags_by_id, mag_ids_to_annotate, annotation_output_dir)
+
+        # Determine which contigs within each MAG have CoSMIC-linked rRNA hits.
+        mag_to_contigs: Dict[str, Set[str]] = {}
+        if "sequence_header" in mapping_df.columns:
+            for mag_id, group in mapping_df.groupby("mag_id"):
+                contigs = set(group["sequence_header"].dropna().astype(str))
+                if contigs:
+                    mag_to_contigs[str(mag_id)] = contigs
+
+        run_prokka_on_mags(
+            mags_by_id,
+            mag_ids_to_annotate,
+            annotation_output_dir,
+            mag_to_contigs=mag_to_contigs if mag_to_contigs else None,
+        )
     else:
         print(
             f"Annotation tool '{annotation_tool}' is not implemented in this script.",
