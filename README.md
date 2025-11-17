@@ -60,6 +60,22 @@ The pipeline is configured via `config.yaml`. Key fields:
 - `barrnap_kingdoms`: kingdoms to scan with Barrnap (default: `bac`, `arc`, `euk`).
 - `annotation_tool`: currently implemented: `prokka`.
 - `annotation_output_dir`: where MAG annotations are written (default: `Annotation/`).
+- `experiment_metadata_yaml`: path to experiment-level metadata in YAML
+  (default: `experiment_metadata.yaml`).
+
+The `experiment_metadata_yaml` file lets you describe the CoSMIC experiment context used
+in the downstream LLM-oriented report. Example (see `experiment_metadata.yaml`):
+
+```yaml
+experiment_id: "CoSMIC_example_001"
+project: "CoSMIC long-read MAG + metabarcoding"
+description: "Replace with real study details."
+host: "human gut"
+environment: "fecal"
+location: "hospital XYZ"
+date: "2025-11-17"
+notes: "Any additional free-text notes."
+```
 
 Adjust `config.yaml` to match your metabarcoding CSV (especially the ID, sequence, and abundance columns) before running.
 
@@ -98,6 +114,11 @@ Running the full pipeline produces:
   - percent identity,
   - all per-sample abundance columns carried through.
 - `Annotation/<MAG_ID>/` – Prokka outputs for each MAG that has at least one metabarcoding hit.
+- `cosmic_llm_report.md` – LLM-ready markdown report summarizing:
+  - MAG metadata (including Prokka summary),
+  - CoSMIC experiment metadata from `experiment_metadata.yaml`,
+  - per-MAG relative abundances (from `metabarcoding_to_MAG_mapping.csv`),
+  - per-MAG and community-level functional summaries (products, EC numbers, COGs).
 
 ## 5. Typical workflow
 
@@ -117,9 +138,44 @@ Running the full pipeline produces:
    - `barrnap_rrna_mapping.csv` / `barrnap_rrna_sequences.fasta` for rRNA extraction,
    - `metabarcoding_to_MAG_mapping.csv` for mapping results,
    - `Annotation/` for MAG annotations.
+7. Generate an LLM-ready composition report:
+
+   ```bash
+   python cosmic_sidekick.py report --config config.yaml
+   ```
+
+   This writes `cosmic_llm_report.md`, which you can feed directly as context to an LLM.
+
+8. (Optional) Enrich the LLM report with external functional tools:
+
+   Once you have run tools such as DRAM, METABOLIC, HUMAnN, or eggNOG-mapper
+   on your annotated MAGs/ORFs and have their TSV outputs, you can append their
+   summaries to the base report using `Richer_report.py`:
+
+   ```bash
+   python Richer_report.py \
+     --base-report cosmic_llm_report.md \
+     --dram-genome-summary DRAM/genome_summary.tsv \
+     --dram-metabolism-summary DRAM/metabolism_summary.tsv \
+     --metabolic-summary METABOLIC/METABOLIC_result_summary.tsv \
+     --humann-pathway-abundance humann/pathway_abundance.tsv \
+     --eggnog-annotations eggnog/combined_annotations.tsv \
+     --output cosmic_llm_rich_report.md
+   ```
+
+   All arguments to `Richer_report.py` are optional; if a file is not provided
+   or does not exist, that section is simply skipped. The resulting
+   `cosmic_llm_rich_report.md` is a richer context document to drive
+   LLM-based interpretation of the CoSMIC experiment.
 
 ## 6. Notes and extensions
 
 - Mapping uses a simple global identity measure (including a fast path for equal-length sequences, and a more general alignment for length mismatches). If your dataset becomes large, we can switch to `vsearch` or `blastn` for faster similarity searches.
 - Currently, only Prokka-based annotation is implemented, but the code is structured so another tool (including Trinotate) could be plugged in if needed.
-
+- The LLM-oriented report currently uses Prokka’s TSV output to summarize:
+  - most frequent annotated products per MAG,
+  - EC numbers and COGs per MAG, and
+  - abundance-weighted EC/COG summaries across the community.
+  External tools such as DRAM, METABOLIC, HUMAnN, or eggNOG-mapper can be run
+  on the MAGs/ORFs separately, and their pathway or module tables can be
+  integrated into the report in a future extension if desired.

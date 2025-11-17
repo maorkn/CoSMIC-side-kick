@@ -1,0 +1,12 @@
+# Example CoSMIC experiment metadata for downstream reporting.
+# Edit these fields to reflect your experiment.
+
+experiment_id: "CoSMIC_example_001"
+project: "CoSMIC long-read MAG + metabarcoding"
+description: "Example experiment metadata; replace with real study details."
+host: "unknown"
+environment: "unknown"
+location: "unknown"
+date: "unknown"
+notes: "Update this file with relevant experimental context before running the report command."
+

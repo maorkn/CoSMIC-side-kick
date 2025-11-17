@@ -530,6 +530,261 @@ def cmd_annotate_test(args: argparse.Namespace) -> None:
     run_prokka_on_mags(mags_by_id, chosen_mag_ids, annotation_output_dir)
 
 
+def cmd_report(args: argparse.Namespace) -> None:
+    """
+    Generate a markdown-style report summarizing MAG metadata,
+    CoSMIC experiment metadata, and species-level annotations +
+    relative abundances, and append an LLM query prompt.
+    """
+    config = load_config(args.config)
+
+    rrna_mapping_csv = Path(args.rrna_mapping or "barrnap_rrna_mapping.csv")
+    mag_annotation_dir = Path(args.annotation_dir or config.get("annotation_output_dir", "Annotation"))
+    meta_mapping_csv = Path(args.metabarcoding_mapping or "metabarcoding_to_MAG_mapping.csv")
+    experiment_metadata_yaml = config.get("experiment_metadata_yaml", "experiment_metadata.yaml")
+
+    if not rrna_mapping_csv.exists():
+        raise SystemExit(f"rRNA mapping CSV not found: {rrna_mapping_csv}")
+    if not mag_annotation_dir.exists():
+        raise SystemExit(f"Annotation directory not found: {mag_annotation_dir}")
+
+    rrna_df = pd.read_csv(rrna_mapping_csv)
+
+    experiment_meta: Dict = {}
+    exp_meta_path = Path(experiment_metadata_yaml)
+    if exp_meta_path.exists():
+        with exp_meta_path.open() as fh:
+            experiment_meta = yaml.safe_load(fh) or {}
+
+    if meta_mapping_csv.exists():
+        mapping_df = pd.read_csv(meta_mapping_csv)
+        has_mapping = not mapping_df.empty
+    else:
+        mapping_df = pd.DataFrame()
+        has_mapping = False
+
+    # Aggregate abundances by MAG if mapping is available
+    mag_abundance: Dict[str, Dict[str, float]] = {}
+    abundance_cols: List[str] = []
+    if has_mapping and "mag_id" in mapping_df.columns:
+        abundance_cols = [
+            c
+            for c in mapping_df.columns
+            if c
+            not in {
+                "metabarcoding_id",
+                "metabarcoding_sequence",
+                "rrna_uid",
+                "mag_id",
+                "sequence_header",
+                "rrna_type",
+                "identity",
+            }
+            and pd.api.types.is_numeric_dtype(mapping_df[c])
+        ]
+        if abundance_cols:
+            grouped = mapping_df.groupby("mag_id")[abundance_cols].sum()
+            mag_abundance = grouped.to_dict(orient="index")
+
+    lines: List[str] = []
+    # For community-level aggregation
+    all_mag_ec: Dict[str, Dict[str, int]] = {}
+    all_mag_cog: Dict[str, Dict[str, int]] = {}
+
+    lines.append("# CoSMIC Composition Report")
+    lines.append("")
+
+    # MAG metadata section
+    lines.append("## MAG Metadata")
+    mag_ids = sorted(rrna_df["mag_id"].dropna().unique().tolist())
+    if not mag_ids:
+        lines.append("No MAGs found in rRNA mapping.")
+    else:
+        for mag_id in mag_ids:
+            mag_rows = rrna_df[rrna_df["mag_id"] == mag_id]
+            mag_path = mag_rows["mag_fasta_path"].iloc[0]
+            n_rrna_16S = (mag_rows["rrna_type"] == "16S").sum()
+            n_rrna_18S = (mag_rows["rrna_type"] == "18S").sum()
+
+            ann_dir = mag_annotation_dir / mag_id
+            summary_txt = ann_dir / f"{mag_id}.txt"
+            summary_lines: List[str] = []
+            if summary_txt.exists():
+                with summary_txt.open() as fh:
+                    summary_lines = [ln.strip() for ln in fh if ln.strip()]
+
+            lines.append(f"### MAG {mag_id}")
+            lines.append(f"- Assembly path: {mag_path}")
+            lines.append(f"- rRNA features: {n_rrna_16S} × 16S, {n_rrna_18S} × 18S")
+            if summary_lines:
+                for ln in summary_lines:
+                    lines.append(f"- {ln}")
+            lines.append("")
+
+    # Experiment metadata
+    lines.append("## CoSMIC Experiment Metadata")
+    if experiment_meta:
+        for key, value in experiment_meta.items():
+            lines.append(f"- {key}: {value}")
+    else:
+        lines.append("- (No experiment metadata file found; "
+                     "add details to experiment_metadata.yaml)")
+    lines.append("")
+
+    # Species / MAG annotation + abundance
+    lines.append("## Species / MAG Annotations and Relative Abundances")
+    if not mag_ids:
+        lines.append("No MAGs to summarize.")
+    else:
+        for mag_id in mag_ids:
+            lines.append(f"### MAG {mag_id}")
+
+            # Abundance info
+            abund_info = mag_abundance.get(mag_id)
+            if abund_info and abundance_cols:
+                lines.append("- Relative abundance per sample (CoSMIC metabarcoding):")
+                for col in abundance_cols:
+                    val = abund_info.get(col, 0.0)
+                    lines.append(f"  - {col}: {val:.4f}")
+            else:
+                lines.append("- Relative abundance: not available (no metabarcoding mapping file found).")
+
+            # Functional annotation overview from Prokka TSV
+            ann_dir = mag_annotation_dir / mag_id
+            tsv_path = ann_dir / f"{mag_id}.tsv"
+            if tsv_path.exists():
+                tsv_df = pd.read_csv(tsv_path, sep="\t")
+                cds_df = tsv_df[tsv_df["ftype"] == "CDS"]
+                total_cds = len(cds_df)
+                non_hyp_df = cds_df[~cds_df["product"].str.contains("hypothetical", case=False, na=False)]
+
+                lines.append(f"- Annotated CDS count: {total_cds}")
+                lines.append(f"- Non-hypothetical CDS count: {len(non_hyp_df)}")
+
+                # Top products by frequency (brief overview)
+                product_counts = (
+                    non_hyp_df["product"]
+                    .value_counts()
+                    .head(10)
+                    .to_dict()
+                )
+                if product_counts:
+                    lines.append("- Most frequent annotated products:")
+                    for prod, count in product_counts.items():
+                        lines.append(f"  - {prod} (n={count})")
+                else:
+                    lines.append("- No non-hypothetical products with counts to summarize.")
+
+                # EC numbers and COGs per MAG
+                mag_ec_counts: Dict[str, int] = {}
+                mag_cog_counts: Dict[str, int] = {}
+
+                if "EC_number" in cds_df.columns:
+                    for val in cds_df["EC_number"].dropna():
+                        if not isinstance(val, str):
+                            continue
+                        for ec in [x.strip() for x in str(val).replace(";", ",").split(",")]:
+                            if not ec or ec in {"-", "NA"}:
+                                continue
+                            mag_ec_counts[ec] = mag_ec_counts.get(ec, 0) + 1
+
+                if "COG" in cds_df.columns:
+                    for val in cds_df["COG"].dropna():
+                        if not isinstance(val, str):
+                            continue
+                        for cog in [x.strip() for x in str(val).replace(";", ",").split(",")]:
+                            if not cog or cog in {"-", "NA"}:
+                                continue
+                            mag_cog_counts[cog] = mag_cog_counts.get(cog, 0) + 1
+
+                all_mag_ec[mag_id] = mag_ec_counts
+                all_mag_cog[mag_id] = mag_cog_counts
+
+                if mag_ec_counts:
+                    lines.append("- Top EC numbers (by CDS count):")
+                    for ec, count in sorted(
+                        mag_ec_counts.items(), key=lambda kv: kv[1], reverse=True
+                    )[:10]:
+                        lines.append(f"  - {ec} (n={count})")
+                else:
+                    lines.append("- No EC annotations available for this MAG.")
+
+                if mag_cog_counts:
+                    lines.append("- Top COGs (by CDS count):")
+                    for cog, count in sorted(
+                        mag_cog_counts.items(), key=lambda kv: kv[1], reverse=True
+                    )[:10]:
+                        lines.append(f"  - {cog} (n={count})")
+                else:
+                    lines.append("- No COG annotations available for this MAG.")
+            else:
+                lines.append("- Annotation TSV not found; only presence/absence known.")
+
+            lines.append("")
+
+    # Community-level aggregation of ECs and COGs, weighted by MAG abundance
+    lines.append("## Community-Level Functional Summary")
+    if not mag_ids:
+        lines.append("No MAGs to summarize at community level.")
+    else:
+        community_ec_counts: Dict[str, float] = {}
+        community_cog_counts: Dict[str, float] = {}
+
+        for mag_id in mag_ids:
+            mag_ec = all_mag_ec.get(mag_id, {})
+            mag_cog = all_mag_cog.get(mag_id, {})
+            abund_info = mag_abundance.get(mag_id)
+            if abund_info and abundance_cols:
+                weight = sum(abund_info.get(col, 0.0) for col in abundance_cols)
+            else:
+                weight = 1.0
+
+            for ec, count in mag_ec.items():
+                community_ec_counts[ec] = community_ec_counts.get(ec, 0.0) + count * weight
+            for cog, count in mag_cog.items():
+                community_cog_counts[cog] = community_cog_counts.get(cog, 0.0) + count * weight
+
+        if community_ec_counts:
+            lines.append("- Top community EC numbers (abundance-weighted):")
+            for ec, score in sorted(
+                community_ec_counts.items(), key=lambda kv: kv[1], reverse=True
+            )[:20]:
+                lines.append(f"  - {ec} (weighted count ~ {score:.2f})")
+        else:
+            lines.append("- No EC annotations available at community level.")
+
+        if community_cog_counts:
+            lines.append("- Top community COGs (abundance-weighted):")
+            for cog, score in sorted(
+                community_cog_counts.items(), key=lambda kv: kv[1], reverse=True
+            )[:20]:
+                lines.append(f"  - {cog} (weighted count ~ {score:.2f})")
+        else:
+            lines.append("- No COG annotations available at community level.")
+
+    lines.append("")
+
+    # LLM query prompt
+    lines.append("## LLM Query")
+    lines.append(
+        "Given the MAG metadata, CoSMIC experiment metadata, species/MAG annotations, "
+        "and relative abundances described above, answer the following:\n"
+    )
+    lines.append(
+        "1. Based on this community composition, what types of environments or "
+        "substrates is this population likely engaging with?\n"
+        "2. What biosynthetic and metabolic processes are likely active in this "
+        "microbial community, and which MAGs/species appear to contribute "
+        "to these functions?"
+    )
+
+    out_path = Path(args.output or "cosmic_llm_report.md")
+    with out_path.open("w") as fh:
+        fh.write("\n".join(lines))
+
+    print(f"Wrote LLM-ready report to {out_path}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Pipeline to link MAGs with metabarcoding 16S/18S and annotate MAGs."
@@ -600,6 +855,39 @@ def build_parser() -> argparse.ArgumentParser:
         help="How many MAGs to annotate (default: 5).",
     )
 
+    report_parser = subparsers.add_parser(
+        "report",
+        help=(
+            "Generate a markdown report summarizing MAGs, experiment metadata, "
+            "and MAG annotations + abundances for LLM-based interpretation."
+        ),
+    )
+    report_parser.add_argument(
+        "--config",
+        default="config.yaml",
+        help="Path to YAML config file (default: config.yaml).",
+    )
+    report_parser.add_argument(
+        "--rrna-mapping",
+        default="barrnap_rrna_mapping.csv",
+        help="Path to rRNA mapping CSV (default: barrnap_rrna_mapping.csv).",
+    )
+    report_parser.add_argument(
+        "--annotation-dir",
+        default=None,
+        help="Directory containing Prokka annotation subfolders (overrides config).",
+    )
+    report_parser.add_argument(
+        "--metabarcoding-mapping",
+        default="metabarcoding_to_MAG_mapping.csv",
+        help="Path to metabarcoding-to-MAG mapping CSV (if available).",
+    )
+    report_parser.add_argument(
+        "--output",
+        default="cosmic_llm_report.md",
+        help="Output report file (default: cosmic_llm_report.md).",
+    )
+
     return parser
 
 
@@ -613,6 +901,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         cmd_extract_rrna(args)
     elif args.command == "annotate-test":
         cmd_annotate_test(args)
+    elif args.command == "report":
+        cmd_report(args)
     else:
         parser.print_help()
 

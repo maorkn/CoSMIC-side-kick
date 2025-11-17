@@ -28,3 +28,7 @@ barrnap_kingdoms:
 annotation_tool: prokka
 annotation_output_dir: Annotation
 
+# Optional: path to experiment-level metadata (YAML)
+# This can include details like sampling site, time, conditions, etc.
+experiment_metadata_yaml: experiment_metadata.yaml
+
