@@ -479,21 +479,37 @@ def cmd_extract_rrna(args: argparse.Namespace) -> None:
     config = load_config(args.config)
     mags_dir = Path(args.mags_dir or config.get("mags_dir", "Data"))
     kingdoms = config.get("barrnap_kingdoms", ["bac", "arc", "euk"])
+    output_dir = Path(args.output_dir or config.get("output_dir", "."))
 
     print(f"Using MAGs directory: {mags_dir}")
     mags_dir = mags_dir.resolve()
+    output_dir = output_dir.resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     rrna_records = extract_rrna_from_mags(mags_dir, kingdoms)
-    save_rrna_outputs(rrna_records)
+
+    # Temporarily change working directory for saving outputs
+    cwd = Path.cwd()
+    try:
+        os.chdir(output_dir)
+        save_rrna_outputs(rrna_records)
+    finally:
+        os.chdir(cwd)
 
 
 def cmd_annotate_test(args: argparse.Namespace) -> None:
     config = load_config(args.config)
     mags_dir = Path(args.mags_dir or config.get("mags_dir", "Data"))
     mags_dir = mags_dir.resolve()
-    annotation_output_dir = Path(config.get("annotation_output_dir", "Annotation"))
 
-    mapping_csv = Path(args.rrna_mapping or "barrnap_rrna_mapping.csv")
+    output_dir = Path(args.output_dir or config.get("output_dir", ".")).resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    annotation_output_dir = output_dir / config.get("annotation_output_dir", "Annotation")
+
+    if args.rrna_mapping:
+        mapping_csv = Path(args.rrna_mapping)
+    else:
+        mapping_csv = output_dir / "barrnap_rrna_mapping.csv"
     if not mapping_csv.exists():
         raise SystemExit(
             f"rRNA mapping CSV not found: {mapping_csv}. "
@@ -538,9 +554,23 @@ def cmd_report(args: argparse.Namespace) -> None:
     """
     config = load_config(args.config)
 
-    rrna_mapping_csv = Path(args.rrna_mapping or "barrnap_rrna_mapping.csv")
-    mag_annotation_dir = Path(args.annotation_dir or config.get("annotation_output_dir", "Annotation"))
-    meta_mapping_csv = Path(args.metabarcoding_mapping or "metabarcoding_to_MAG_mapping.csv")
+    output_dir = Path(args.output_dir or config.get("output_dir", ".")).resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.rrna_mapping:
+        rrna_mapping_csv = Path(args.rrna_mapping)
+    else:
+        rrna_mapping_csv = output_dir / "barrnap_rrna_mapping.csv"
+
+    if args.annotation_dir:
+        mag_annotation_dir = Path(args.annotation_dir)
+    else:
+        mag_annotation_dir = output_dir / config.get("annotation_output_dir", "Annotation")
+
+    if args.metabarcoding_mapping:
+        meta_mapping_csv = Path(args.metabarcoding_mapping)
+    else:
+        meta_mapping_csv = output_dir / "metabarcoding_to_MAG_mapping.csv"
     experiment_metadata_yaml = config.get("experiment_metadata_yaml", "experiment_metadata.yaml")
 
     if not rrna_mapping_csv.exists():
@@ -778,7 +808,7 @@ def cmd_report(args: argparse.Namespace) -> None:
         "to these functions?"
     )
 
-    out_path = Path(args.output or "cosmic_llm_report.md")
+    out_path = output_dir / (args.output or "cosmic_llm_report.md")
     with out_path.open("w") as fh:
         fh.write("\n".join(lines))
 
@@ -810,6 +840,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Metabarcoding CSV file (overrides config).",
     )
+    run_parser.add_argument(
+        "--output-dir",
+        default=None,
+        help="Base output directory for this run (default: current directory or config output_dir).",
+    )
 
     extract_parser = subparsers.add_parser(
         "extract-rrna",
@@ -824,6 +859,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--mags-dir",
         default=None,
         help="Directory containing MAG fasta(.gz) files (overrides config).",
+    )
+    extract_parser.add_argument(
+        "--output-dir",
+        default=None,
+        help="Base output directory for this extraction run (default: current directory or config output_dir).",
     )
 
     annotate_test_parser = subparsers.add_parser(
@@ -885,7 +925,7 @@ def build_parser() -> argparse.ArgumentParser:
     report_parser.add_argument(
         "--output",
         default="cosmic_llm_report.md",
-        help="Output report file (default: cosmic_llm_report.md).",
+        help="Report filename within the output directory (default: cosmic_llm_report.md).",
     )
 
     return parser

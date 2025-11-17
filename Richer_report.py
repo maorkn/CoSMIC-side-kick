@@ -1,35 +1,49 @@
 """
 Optional script to enrich the CoSMIC LLM report with additional
-functional context from external tools (DRAM, METABOLIC, HUMAnN,
-eggNOG-mapper), if their result tables are available.
+functional context from external tools.
 
-Usage (basic):
+It can:
+1. Run default functional annotation for MAGs using:
+   - DRAM (genome & metabolism summaries)
+   - METABOLIC (metabolic marker summary)
+   - eggNOG-mapper (KOs / GO terms from protein FASTAs)
+2. Integrate these tool outputs (plus optional HUMAnN) into an enriched
+   markdown report suitable as LLM context.
+
+Usage (basic enrichment only, assuming tools already ran elsewhere):
 
     source .venv/bin/activate
     python Richer_report.py \
         --base-report cosmic_llm_report.md \
         --output cosmic_llm_rich_report.md
 
-You can also pass paths to additional tool outputs, e.g.:
+Run tools and enrich in one go (paths are examples; adjust to your setup):
 
     python Richer_report.py \
         --base-report cosmic_llm_report.md \
-        --dram-genome-summary DRAM/genome_summary.tsv \
-        --dram-metabolism-summary DRAM/metabolism_summary.tsv \
-        --metabolic-summary METABOLIC/METABOLIC_result_summary.tsv \
-        --humann-pathway-abundance humann/pathway_abundance.tsv \
-        --eggnog-annotations eggnog/combined_annotations.tsv \
+        --mags-dir Data \
+        --annotation-dir Annotation \
+        --run-dram \
+        --run-metabolic \
+        --run-eggnog \
+        --threads 8 \
         --output cosmic_llm_rich_report.md
 
-This script does NOT run those tools; it only integrates their
-tabular outputs into a richer markdown report.
+Notes:
+- This script assumes DRAM (DRAM.py), METABOLIC-G, and eggNOG-mapper
+  (emapper.py) are already installed and configured (including their
+  databases) and available on your PATH. It does not install databases.
+- HUMAnN and other tools are still expected to be run externally.
 """
 
 import argparse
+import subprocess
+import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import pandas as pd
+from shutil import which
 
 
 def read_text_lines(path: Path) -> List[str]:
@@ -37,6 +51,32 @@ def read_text_lines(path: Path) -> List[str]:
         raise SystemExit(f"Base report not found: {path}")
     with path.open() as fh:
         return fh.read().splitlines()
+
+
+def find_executable(candidates: Sequence[str]) -> Optional[str]:
+    for name in candidates:
+        exe = which(name)
+        if exe is not None:
+            return exe
+    return None
+
+
+def run_command(cmd: Sequence[str], cwd: Optional[Path] = None) -> bool:
+    print(f"[Richer_report] Running: {' '.join(cmd)}", file=sys.stderr)
+    try:
+        subprocess.run(
+            cmd,
+            check=True,
+            cwd=str(cwd) if cwd is not None else None,
+        )
+        return True
+    except subprocess.CalledProcessError as e:
+        print(
+            f"[Richer_report] Command failed with exit code {e.returncode}: "
+            f"{' '.join(cmd)}",
+            file=sys.stderr,
+        )
+        return False
 
 
 def detect_id_column(df: pd.DataFrame, candidates: Sequence[str]) -> Optional[str]:
@@ -260,6 +300,209 @@ def summarize_eggnog_annotations(path: Path) -> List[str]:
     return lines
 
 
+def run_dram(
+    mags_dir: Path,
+    out_dir: Path,
+    threads: int,
+) -> Tuple[Optional[Path], Optional[Path]]:
+    """
+    Run DRAM annotate + distill on MAG FASTA files.
+
+    Returns (genome_summary.tsv path, metabolism_summary.tsv path), or (None, None)
+    on failure.
+    """
+    exe = find_executable(["DRAM.py", "dram.py", "DRAM"])
+    if exe is None:
+        print(
+            "[Richer_report] DRAM not found on PATH (DRAM.py/dram.py). "
+            "Skipping DRAM run.",
+            file=sys.stderr,
+        )
+        return None, None
+
+    mags_dir = mags_dir.resolve()
+    out_dir = out_dir.resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    annotate_cmd = [
+        exe,
+        "annotate",
+        "-i",
+        str(mags_dir),
+        "-o",
+        str(out_dir),
+        "--threads",
+        str(threads),
+    ]
+
+    if not run_command(annotate_cmd):
+        return None, None
+
+    annotations_tsv = out_dir / "annotations.tsv"
+    if not annotations_tsv.exists():
+        print(
+            f"[Richer_report] DRAM annotations.tsv not found in {out_dir}; "
+            "cannot run distill.",
+            file=sys.stderr,
+        )
+        return None, None
+
+    distill_dir = out_dir / "distill"
+    distill_cmd = [
+        exe,
+        "distill",
+        "-i",
+        str(annotations_tsv),
+        "-o",
+        str(distill_dir),
+    ]
+    if not run_command(distill_cmd):
+        return None, None
+
+    genome_summary = distill_dir / "genome_summary.tsv"
+    metabolism_summary = distill_dir / "metabolism_summary.tsv"
+
+    if not genome_summary.exists():
+        genome_summary = None
+    if not metabolism_summary.exists():
+        metabolism_summary = None
+
+    return genome_summary, metabolism_summary
+
+
+def run_metabolic(
+    mags_dir: Path,
+    out_dir: Path,
+    threads: int,
+) -> Optional[Path]:
+    """
+    Run METABOLIC-G on MAG FASTA files.
+
+    Returns a summary TSV path if found, otherwise None.
+    """
+    exe = find_executable(["METABOLIC-G", "METABOLIC-G.pl"])
+    if exe is None:
+        print(
+            "[Richer_report] METABOLIC-G not found on PATH. "
+            "Skipping METABOLIC run.",
+            file=sys.stderr,
+        )
+        return None
+
+    mags_dir = mags_dir.resolve()
+    out_dir = out_dir.resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    genome_list = out_dir / "METABOLIC_genomes.txt"
+    mag_files = sorted(
+        p
+        for p in mags_dir.iterdir()
+        if p.suffix in {".fa", ".fna", ".fasta", ".gz"}
+    )
+    if not mag_files:
+        print(
+            f"[Richer_report] No MAG FASTA files found in {mags_dir}; "
+            "skipping METABOLIC run.",
+            file=sys.stderr,
+        )
+        return None
+
+    with genome_list.open("w") as fh:
+        for p in mag_files:
+            fh.write(str(p.resolve()) + "\n")
+
+    cmd = [
+        exe,
+        "-in-gn",
+        str(genome_list),
+        "-o",
+        str(out_dir),
+        "-t",
+        str(threads),
+    ]
+
+    if not run_command(cmd):
+        return None
+
+    # Try to find a summary TSV; METABOLIC naming conventions may vary slightly.
+    candidate = out_dir / "METABOLIC_result_summary.tsv"
+    if candidate.exists():
+        return candidate
+
+    # Fallback: first TSV file with 'summary' in the name.
+    for p in out_dir.glob("*.tsv"):
+        if "summary" in p.name.lower():
+            return p
+
+    print(
+        f"[Richer_report] METABOLIC run completed but no summary TSV found in {out_dir}.",
+        file=sys.stderr,
+    )
+    return None
+
+
+def run_eggnog_mapper(
+    annotation_dir: Path,
+    out_dir: Path,
+    threads: int,
+) -> Optional[Path]:
+    """
+    Run eggNOG-mapper on all Prokka protein FASTAs (*.faa) and return
+    the combined annotations TSV path if successful.
+    """
+    exe = find_executable(["emapper.py", "emapper"])
+    if exe is None:
+        print(
+            "[Richer_report] eggNOG-mapper (emapper.py) not found on PATH. "
+            "Skipping eggNOG run.",
+            file=sys.stderr,
+        )
+        return None
+
+    annotation_dir = annotation_dir.resolve()
+    out_dir = out_dir.resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    faa_files = sorted(annotation_dir.glob("*/*.faa"))
+    if not faa_files:
+        print(
+            f"[Richer_report] No Prokka protein FASTAs (*.faa) found under {annotation_dir}; "
+            "skipping eggNOG run.",
+            file=sys.stderr,
+        )
+        return None
+
+    combined_faa = out_dir / "eggnog_all_proteins.faa"
+    with combined_faa.open("w") as out_fh:
+        for faa in faa_files:
+            with faa.open() as in_fh:
+                out_fh.write(in_fh.read())
+
+    prefix = out_dir / "eggnog"
+    cmd = [
+        exe,
+        "-i",
+        str(combined_faa),
+        "-o",
+        str(prefix),
+        "--cpu",
+        str(threads),
+    ]
+
+    if not run_command(cmd):
+        return None
+
+    annotations = Path(f"{prefix}.emapper.annotations")
+    if not annotations.exists():
+        print(
+            f"[Richer_report] eggNOG annotations file not found at {annotations}.",
+            file=sys.stderr,
+        )
+        return None
+
+    return annotations
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -274,19 +517,53 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the existing base report (default: cosmic_llm_report.md).",
     )
     parser.add_argument(
+        "--mags-dir",
+        default="Data",
+        help="Directory containing MAG FASTA files (default: Data).",
+    )
+    parser.add_argument(
+        "--annotation-dir",
+        default="Annotation",
+        help="Directory containing Prokka annotation subfolders (default: Annotation).",
+    )
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=8,
+        help="Number of CPU threads to use when running external tools (default: 8).",
+    )
+    parser.add_argument(
+        "--run-dram",
+        action="store_true",
+        help="Run DRAM annotate+distill on MAGs before summarizing.",
+    )
+    parser.add_argument(
+        "--run-metabolic",
+        action="store_true",
+        help="Run METABOLIC-G on MAGs before summarizing.",
+    )
+    parser.add_argument(
+        "--run-eggnog",
+        action="store_true",
+        help="Run eggNOG-mapper on Prokka protein FASTAs before summarizing.",
+    )
+    parser.add_argument(
         "--dram-genome-summary",
         default=None,
-        help="Optional DRAM genome summary TSV (per MAG).",
+        help="Optional DRAM genome summary TSV (per MAG). If not provided and "
+        "--run-dram is set, this is auto-populated from DRAM output.",
     )
     parser.add_argument(
         "--dram-metabolism-summary",
         default=None,
-        help="Optional DRAM metabolism summary TSV (per MAG).",
+        help="Optional DRAM metabolism summary TSV (per MAG). If not provided and "
+        "--run-dram is set, this is auto-populated from DRAM output.",
     )
     parser.add_argument(
         "--metabolic-summary",
         default=None,
-        help="Optional METABOLIC result summary TSV.",
+        help="Optional METABOLIC result summary TSV. If not provided and "
+        "--run-metabolic is set, this is auto-populated from METABOLIC output.",
     )
     parser.add_argument(
         "--humann-pathway-abundance",
@@ -296,7 +573,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--eggnog-annotations",
         default=None,
-        help="Optional combined eggNOG-mapper annotations TSV.",
+        help=(
+            "Optional combined eggNOG-mapper annotations TSV. If not provided and "
+            "--run-eggnog is set, this is auto-populated from eggNOG output."
+        ),
     )
     parser.add_argument(
         "--output",
@@ -312,6 +592,30 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     base_path = Path(args.base_report)
     out_path = Path(args.output)
+
+    mags_dir = Path(args.mags_dir)
+    annotation_dir = Path(args.annotation_dir)
+
+    # Optionally run external tools to generate functional summaries.
+    if args.run_dram:
+        dram_out = Path("DRAM_output")
+        g_sum, m_sum = run_dram(mags_dir, dram_out, args.threads)
+        if g_sum is not None:
+            args.dram_genome_summary = str(g_sum)
+        if m_sum is not None:
+            args.dram_metabolism_summary = str(m_sum)
+
+    if args.run_metabolic:
+        metabolic_out = Path("METABOLIC_output")
+        meta_sum = run_metabolic(mags_dir, metabolic_out, args.threads)
+        if meta_sum is not None:
+            args.metabolic_summary = str(meta_sum)
+
+    if args.run_eggnog:
+        eggnog_out = Path("eggNOG_output")
+        eggnog_ann = run_eggnog_mapper(annotation_dir, eggnog_out, args.threads)
+        if eggnog_ann is not None:
+            args.eggnog_annotations = str(eggnog_ann)
 
     lines = read_text_lines(base_path)
 
@@ -344,4 +648,3 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
 if __name__ == "__main__":
     main()
-
