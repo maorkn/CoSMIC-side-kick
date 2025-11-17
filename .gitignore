@@ -1,0 +1,15 @@
+# Project-specific ignores
+Data/
+Annotation/
+venv/
+
+# Common Python artifacts (optional safety)
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.build/
+.dist/
+.env
+.env.*
+*.log
