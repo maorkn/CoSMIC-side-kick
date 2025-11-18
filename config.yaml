@@ -3,7 +3,7 @@
 mags_dir: Data
 
 # Path to metabarcoding CSV with full-length 16S/18S and per-sample relative abundances.
-metabarcoding_csv: metabarcoding.csv
+metabarcoding_csv: Data/metabarcoding_from_freqs.csv
 
 # Column in metabarcoding CSV with a unique identifier per sequence (e.g. ASV/OTU ID).
 metabarcoding_id_column: id
@@ -31,4 +31,3 @@ annotation_output_dir: Annotation
 # Optional: path to experiment-level metadata (YAML)
 # This can include details like sampling site, time, conditions, etc.
 experiment_metadata_yaml: experiment_metadata.yaml
-

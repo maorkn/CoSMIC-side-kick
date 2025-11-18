@@ -157,6 +157,7 @@ def extract_rrna_from_mags(
 
     for mag_path in mags:
         mag_id = get_mag_id(mag_path)
+        print(f"[CoSMIC] Running Barrnap on MAG {mag_id} ({mag_path.name})...")
 
         # Load sequences into memory (dict of id -> sequence)
         seq_records: Dict[str, str] = {}
@@ -165,6 +166,10 @@ def extract_rrna_from_mags(
                 seq_records[rec.id] = str(rec.seq).upper()
 
         gff_hits = run_barrnap_on_mag(mag_path, kingdoms)
+        if not gff_hits:
+            print(f"[CoSMIC]   Barrnap returned no 16S/18S hits for {mag_id}.")
+            continue
+
         for kingdom, seqid, rrna_id, rrna_type, start, end, strand, product in gff_hits:
             # Barrnap coordinates are 1-based inclusive
             seq = seq_records.get(seqid)
@@ -195,6 +200,13 @@ def extract_rrna_from_mags(
                 sequence=subseq,
             )
             all_records.append(record)
+
+        n_16s = sum(1 for _, _, _, rrna_type, *_ in gff_hits if rrna_type == "16S")
+        n_18s = sum(1 for _, _, _, rrna_type, *_ in gff_hits if rrna_type == "18S")
+        print(
+            f"[CoSMIC]   Barrnap hits for {mag_id}: {len(gff_hits)} total "
+            f"({n_16s} × 16S, {n_18s} × 18S)"
+        )
 
     return all_records
 
@@ -448,22 +460,36 @@ def run_pipeline(args: argparse.Namespace):
     config = load_config(args.config)
 
     mags_dir = Path(args.mags_dir or config.get("mags_dir", "Data"))
+    output_dir = Path(args.output_dir or config.get("output_dir", "."))
+    output_dir = output_dir.resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     metabarcoding_csv = Path(
         args.metabarcoding or config.get("metabarcoding_csv", "metabarcoding.csv")
     )
+    metabarcoding_csv = metabarcoding_csv.resolve()
     id_col = config.get("metabarcoding_id_column", "id")
     seq_col = config.get("metabarcoding_sequence_column", "sequence")
     abundance_cols = config.get("metabarcoding_abundance_columns")
     identity_threshold = float(config.get("identity_threshold", 0.97))
     kingdoms = config.get("barrnap_kingdoms", ["bac", "arc", "euk"])
     annotation_tool = config.get("annotation_tool", "prokka")
-    annotation_output_dir = Path(config.get("annotation_output_dir", "Annotation"))
+    annotation_output_cfg = Path(config.get("annotation_output_dir", "Annotation"))
+    if annotation_output_cfg.is_absolute():
+        annotation_output_dir = annotation_output_cfg
+    else:
+        annotation_output_dir = (output_dir / annotation_output_cfg).resolve()
+    annotation_output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Using MAGs directory: {mags_dir}")
+    print(f"[CoSMIC] Using MAGs directory: {mags_dir}")
+    print(f"[CoSMIC] Output directory: {output_dir}")
+    print(f"[CoSMIC] Annotation output directory: {annotation_output_dir}")
+    print(f"[CoSMIC] Metabarcoding table: {metabarcoding_csv}")
+    print(f"[CoSMIC] Identity threshold: {identity_threshold:.2%}")
     mags_dir = mags_dir.resolve()
 
     rrna_records = extract_rrna_from_mags(mags_dir, kingdoms)
-    save_rrna_outputs(rrna_records)
+    save_rrna_outputs(rrna_records, out_prefix=str(output_dir / "barrnap_rrna"))
 
     if not metabarcoding_csv.exists():
         print(
@@ -476,6 +502,10 @@ def run_pipeline(args: argparse.Namespace):
     meta_df, abundance_cols = load_metabarcoding_table(
         metabarcoding_csv, id_col, seq_col, abundance_cols
     )
+    print(
+        f"[CoSMIC] Loaded metabarcoding table with {len(meta_df)} rows "
+        f"and {len(abundance_cols)} abundance columns."
+    )
 
     mapping_df = map_metabarcoding_to_rrna(
         rrna_records,
@@ -485,12 +515,16 @@ def run_pipeline(args: argparse.Namespace):
         abundance_cols,
         identity_threshold,
     )
+    print(
+        f"[CoSMIC] Mapping complete: {len(mapping_df)} CoSMIC hits "
+        f"covering {mapping_df['mag_id'].nunique() if not mapping_df.empty else 0} MAGs."
+    )
 
     if mapping_df.empty:
         print("No mappings found; skipping annotation.", file=sys.stderr)
         return
 
-    mapping_csv = Path("metabarcoding_to_MAG_mapping.csv")
+    mapping_csv = output_dir / "metabarcoding_to_MAG_mapping.csv"
     mapping_df.to_csv(mapping_csv, index=False)
     print(f"Saved metabarcoding-to-MAG mapping to {mapping_csv}")
 
@@ -501,6 +535,7 @@ def run_pipeline(args: argparse.Namespace):
             if p.suffix in {".fa", ".fasta", ".fna", ".gz"}:
                 mags_by_id[get_mag_id(p)] = p
         mag_ids_to_annotate = mapping_df["mag_id"].unique().tolist()
+        print(f"[CoSMIC] Annotating {len(mag_ids_to_annotate)} MAG(s) with Prokka...")
 
         # Determine which contigs within each MAG have CoSMIC-linked rRNA hits.
         mag_to_contigs: Dict[str, Set[str]] = {}
