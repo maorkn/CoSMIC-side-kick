@@ -1,9 +1,13 @@
 import argparse
 import gzip
+import json
 import os
 import random
+import shutil
 import subprocess
 import sys
+import tempfile
+from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, Set
@@ -30,6 +34,35 @@ class RRnaRecord:
     sequence: str
 
 
+def _stage_status_path(base_dir: Path) -> Path:
+    return Path(base_dir) / "cosmic_stage_status.json"
+
+
+def record_stage_status(
+    base_dir: Path, stage: str, status: str, details: Optional[str] = None
+) -> None:
+    """
+    Persist per-stage status to cosmic_stage_status.json within the output directory.
+    """
+    path = _stage_status_path(base_dir)
+    data: Dict[str, Dict[str, str]] = {}
+    if path.exists():
+        try:
+            data = json.loads(path.read_text())
+        except Exception:
+            data = {}
+    entry = {
+        "status": status,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+    }
+    if details:
+        entry["details"] = details
+    data[stage] = entry
+    path.write_text(json.dumps(data, indent=2))
+    detail_msg = f" ({details})" if details else ""
+    print(f"[CoSMIC] Stage '{stage}' status: {status}{detail_msg}")
+
+
 def load_config(path: Optional[str]) -> Dict:
     cfg_path = Path(path) if path else Path("config.yaml")
     if not cfg_path.exists():
@@ -53,7 +86,7 @@ def open_fasta_for_seqio(path: Path):
 
 
 def run_barrnap_on_mag(
-    fasta_path: Path, kingdoms: Sequence[str]
+    fasta_path: Path, kingdoms: Sequence[str], threads: int = 1
 ) -> List[Tuple[str, str, int, int, str, str, str, str]]:
     """
     Run barrnap on a MAG fasta for the given kingdoms.
@@ -71,6 +104,7 @@ def run_barrnap_on_mag(
         )
 
     results: List[Tuple[str, str, str, str, int, int, str, str]] = []
+    threads = max(1, int(threads or 1))
 
     # Decompress to a temporary uncompressed fasta for barrnap
     import tempfile
@@ -82,7 +116,7 @@ def run_barrnap_on_mag(
 
     try:
         for kingdom in kingdoms:
-            cmd = ["barrnap", "--kingdom", kingdom, str(tmp_path)]
+            cmd = ["barrnap", "--kingdom", kingdom, "--threads", str(threads), str(tmp_path)]
             proc = subprocess.run(
                 cmd,
                 check=True,
@@ -145,7 +179,7 @@ def run_barrnap_on_mag(
 
 
 def extract_rrna_from_mags(
-    mags_dir: Path, kingdoms: Sequence[str]
+    mags_dir: Path, kingdoms: Sequence[str], threads: int = 1
 ) -> List[RRnaRecord]:
     mags: List[Path] = sorted(
         p for p in mags_dir.iterdir() if p.suffix in {".fa", ".fasta", ".fna", ".gz"}
@@ -165,7 +199,7 @@ def extract_rrna_from_mags(
             for rec in SeqIO.parse(handle, "fasta"):
                 seq_records[rec.id] = str(rec.seq).upper()
 
-        gff_hits = run_barrnap_on_mag(mag_path, kingdoms)
+        gff_hits = run_barrnap_on_mag(mag_path, kingdoms, threads=threads)
         if not gff_hits:
             print(f"[CoSMIC]   Barrnap returned no 16S/18S hits for {mag_id}.")
             continue
@@ -211,10 +245,14 @@ def extract_rrna_from_mags(
     return all_records
 
 
-def save_rrna_outputs(records: List[RRnaRecord], out_prefix: str = "barrnap_rrna"):
+def save_rrna_outputs(
+    records: List[RRnaRecord], out_prefix: str = "barrnap_rrna"
+) -> Tuple[Path, Path]:
     if not records:
         print("No 16S/18S rRNA features found in MAGs.", file=sys.stderr)
-        return
+        csv_path = Path(f"{out_prefix}_mapping.csv")
+        fasta_path = Path(f"{out_prefix}_sequences.fasta")
+        return csv_path, fasta_path
 
     df = pd.DataFrame(
         [
@@ -247,6 +285,7 @@ def save_rrna_outputs(records: List[RRnaRecord], out_prefix: str = "barrnap_rrna
 
     print(f"Saved rRNA mapping CSV to {csv_path}")
     print(f"Saved rRNA FASTA to {fasta_path}")
+    return csv_path, fasta_path
 
 
 def load_metabarcoding_table(
@@ -311,7 +350,119 @@ def compute_identity(seq1: str, seq2: str) -> float:
     return matches / length
 
 
-def map_metabarcoding_to_rrna(
+def _write_metabarcoding_fasta(
+    meta_df: pd.DataFrame, id_col: str, seq_col: str
+) -> Tuple[Path, Dict[str, Dict]]:
+    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".fa", delete=False)
+    path = Path(tmp.name)
+    lookup: Dict[str, Dict] = {}
+    try:
+        seen: Dict[str, int] = {}
+        for _, row in meta_df.iterrows():
+            seq_val = row.get(seq_col, "")
+            seq = str(seq_val).strip().upper()
+            if not seq:
+                continue
+            meta_id = str(row[id_col])
+            base = meta_id if meta_id else "metabarcoding"
+            counter = seen.get(base, 0)
+            header = base if counter == 0 else f"{base}__{counter+1}"
+            seen[base] = counter + 1
+            lookup[header] = row.to_dict()
+            tmp.write(f">{header}\n{seq}\n")
+        tmp.flush()
+    finally:
+        tmp.close()
+
+    if not lookup:
+        path.unlink(missing_ok=True)
+        raise SystemExit(
+            "No metabarcoding sequences available for mapping; check the sequence column."
+        )
+
+    return path, lookup
+
+
+def map_metabarcoding_to_rrna_minimap(
+    rrna_records: List[RRnaRecord],
+    meta_df: pd.DataFrame,
+    id_col: str,
+    seq_col: str,
+    abundance_cols: List[str],
+    identity_threshold: float,
+    rrna_fasta_path: Path,
+    threads: int,
+) -> pd.DataFrame:
+    query_fasta, query_lookup = _write_metabarcoding_fasta(meta_df, id_col, seq_col)
+    try:
+        cmd = [
+            "minimap2",
+            "-x",
+            "map-ont",
+            "-t",
+            str(max(1, threads)),
+            str(rrna_fasta_path),
+            str(query_fasta),
+        ]
+        print(f"[CoSMIC] Running minimap2: {' '.join(cmd)}")
+        proc = subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        query_fasta.unlink(missing_ok=True)
+
+    rrna_by_uid = {r.rrna_uid: r for r in rrna_records}
+    hit_map: Dict[Tuple[str, str], Dict] = {}
+
+    for line in proc.stdout.splitlines():
+        if not line.strip():
+            continue
+        parts = line.split("\t")
+        if len(parts) < 12:
+            continue
+        qname, _, qstart, qend, strand, tname, _, tstart, tend, n_match, aln_len, mapq = (
+            parts[:12]
+        )
+        try:
+            matches = int(n_match)
+            aligned = int(aln_len)
+        except ValueError:
+            continue
+        if aligned <= 0:
+            continue
+        identity = matches / aligned
+        if identity < identity_threshold:
+            continue
+        rrna = rrna_by_uid.get(tname)
+        row = query_lookup.get(qname)
+        if not rrna or not row:
+            continue
+        key = (str(row[id_col]), rrna.rrna_uid)
+        existing = hit_map.get(key)
+        if existing and existing["identity"] >= identity:
+            continue
+        entry: Dict = {
+            "metabarcoding_id": row[id_col],
+            "metabarcoding_sequence": row.get(seq_col, ""),
+            "rrna_uid": rrna.rrna_uid,
+            "mag_id": rrna.mag_id,
+            "sequence_header": rrna.sequence_header,
+            "rrna_type": rrna.rrna_type,
+            "identity": identity,
+            "alignment_length": aligned,
+            "matches": matches,
+        }
+        for col in abundance_cols:
+            entry[col] = row.get(col, 0.0)
+        hit_map[key] = entry
+
+    return pd.DataFrame(hit_map.values())
+
+
+def map_metabarcoding_to_rrna_pairwise(
     rrna_records: List[RRnaRecord],
     meta_df: pd.DataFrame,
     id_col: str,
@@ -319,18 +470,19 @@ def map_metabarcoding_to_rrna(
     abundance_cols: List[str],
     identity_threshold: float,
 ) -> pd.DataFrame:
+    print(
+        "[CoSMIC] minimap2 not available; using in-Python pairwise identity.",
+        file=sys.stderr,
+    )
     rrna_by_uid = {r.rrna_uid: r for r in rrna_records}
     rrna_items = list(rrna_by_uid.items())
-
     mappings: List[Dict] = []
-
     for _, row in meta_df.iterrows():
         meta_id = row[id_col]
         meta_seq = str(row[seq_col])
         if not isinstance(meta_seq, str) or not meta_seq.strip():
             continue
         meta_seq = meta_seq.strip()
-
         for rrna_uid, r in rrna_items:
             pid = compute_identity(meta_seq, r.sequence)
             if pid >= identity_threshold:
@@ -344,17 +496,61 @@ def map_metabarcoding_to_rrna(
                     "identity": pid,
                 }
                 for col in abundance_cols:
-                    entry[col] = row[col]
+                    entry[col] = row.get(col, 0.0)
                 mappings.append(entry)
+    return pd.DataFrame(mappings)
 
-    if not mappings:
+
+def map_metabarcoding_to_rrna(
+    rrna_records: List[RRnaRecord],
+    meta_df: pd.DataFrame,
+    id_col: str,
+    seq_col: str,
+    abundance_cols: List[str],
+    identity_threshold: float,
+    rrna_fasta_path: Optional[Path],
+    minimap_threads: int,
+) -> pd.DataFrame:
+    if rrna_fasta_path and rrna_fasta_path.exists():
+        minimap_bin = shutil.which("minimap2")
+        if minimap_bin:
+            try:
+                return map_metabarcoding_to_rrna_minimap(
+                    rrna_records,
+                    meta_df,
+                    id_col,
+                    seq_col,
+                    abundance_cols,
+                    identity_threshold,
+                    rrna_fasta_path,
+                    minimap_threads,
+                )
+            except subprocess.CalledProcessError as exc:
+                print(
+                    f"[CoSMIC] minimap2 failed (exit code {exc.returncode}); "
+                    "falling back to pairwise identity.",
+                    file=sys.stderr,
+                )
+        else:
+            print(
+                "[CoSMIC] minimap2 executable not found on PATH; "
+                "falling back to pairwise identity.",
+                file=sys.stderr,
+            )
+    else:
         print(
-            "No metabarcoding sequences mapped to MAG rRNA at the given threshold.",
+            "[CoSMIC] rRNA FASTA not available; falling back to pairwise identity.",
             file=sys.stderr,
         )
-        return pd.DataFrame()
 
-    return pd.DataFrame(mappings)
+    return map_metabarcoding_to_rrna_pairwise(
+        rrna_records,
+        meta_df,
+        id_col,
+        seq_col,
+        abundance_cols,
+        identity_threshold,
+    )
 
 
 def run_prokka_on_mags(
@@ -473,6 +669,8 @@ def run_pipeline(args: argparse.Namespace):
     abundance_cols = config.get("metabarcoding_abundance_columns")
     identity_threshold = float(config.get("identity_threshold", 0.97))
     kingdoms = config.get("barrnap_kingdoms", ["bac", "arc", "euk"])
+    barrnap_threads = int(config.get("barrnap_threads") or os.cpu_count() or 1)
+    minimap_threads = int(config.get("minimap_threads") or os.cpu_count() or 1)
     annotation_tool = config.get("annotation_tool", "prokka")
     annotation_output_cfg = Path(config.get("annotation_output_dir", "Annotation"))
     if annotation_output_cfg.is_absolute():
@@ -486,16 +684,48 @@ def run_pipeline(args: argparse.Namespace):
     print(f"[CoSMIC] Annotation output directory: {annotation_output_dir}")
     print(f"[CoSMIC] Metabarcoding table: {metabarcoding_csv}")
     print(f"[CoSMIC] Identity threshold: {identity_threshold:.2%}")
+    print(f"[CoSMIC] Barrnap threads: {barrnap_threads}")
+    print(f"[CoSMIC] Minimap2 threads: {minimap_threads}")
     mags_dir = mags_dir.resolve()
 
-    rrna_records = extract_rrna_from_mags(mags_dir, kingdoms)
-    save_rrna_outputs(rrna_records, out_prefix=str(output_dir / "barrnap_rrna"))
+    record_stage_status(
+        output_dir, "rrna_extraction", "running", "Running Barrnap on MAGs."
+    )
+    try:
+        rrna_records = extract_rrna_from_mags(mags_dir, kingdoms, threads=barrnap_threads)
+        rrna_prefix = output_dir / "barrnap_rrna"
+        rrna_csv_path, rrna_fasta_path = save_rrna_outputs(
+            rrna_records, out_prefix=str(rrna_prefix)
+        )
+        record_stage_status(
+            output_dir,
+            "rrna_extraction",
+            "completed",
+            f"{len(rrna_records)} rRNA features written to {rrna_csv_path.name}.",
+        )
+    except Exception as exc:
+        record_stage_status(
+            output_dir, "rrna_extraction", "failed", f"{type(exc).__name__}: {exc}"
+        )
+        raise
 
     if not metabarcoding_csv.exists():
         print(
             f"Metabarcoding CSV '{metabarcoding_csv}' not found. "
             "Pipeline will stop after rRNA extraction.",
             file=sys.stderr,
+        )
+        record_stage_status(
+            output_dir,
+            "mapping",
+            "skipped",
+            f"Metabarcoding CSV not found at {metabarcoding_csv}.",
+        )
+        record_stage_status(
+            output_dir,
+            "annotation",
+            "skipped",
+            "Annotation depends on metabarcoding mappings, which were not generated.",
         )
         return
 
@@ -507,21 +737,49 @@ def run_pipeline(args: argparse.Namespace):
         f"and {len(abundance_cols)} abundance columns."
     )
 
-    mapping_df = map_metabarcoding_to_rrna(
-        rrna_records,
-        meta_df,
-        id_col,
-        seq_col,
-        abundance_cols,
-        identity_threshold,
+    record_stage_status(
+        output_dir,
+        "mapping",
+        "running",
+        "Aligning metabarcoding sequences to rRNA references.",
+    )
+    try:
+        mapping_df = map_metabarcoding_to_rrna(
+            rrna_records,
+            meta_df,
+            id_col,
+            seq_col,
+            abundance_cols,
+            identity_threshold,
+            rrna_fasta_path,
+            minimap_threads,
+        )
+    except Exception as exc:
+        record_stage_status(
+            output_dir, "mapping", "failed", f"{type(exc).__name__}: {exc}"
+        )
+        raise
+
+    mapped_mags = mapping_df["mag_id"].nunique() if not mapping_df.empty else 0
+    record_stage_status(
+        output_dir,
+        "mapping",
+        "completed",
+        f"{len(mapping_df)} CoSMIC hits across {mapped_mags} MAG(s).",
     )
     print(
         f"[CoSMIC] Mapping complete: {len(mapping_df)} CoSMIC hits "
-        f"covering {mapping_df['mag_id'].nunique() if not mapping_df.empty else 0} MAGs."
+        f"covering {mapped_mags} MAGs."
     )
 
     if mapping_df.empty:
         print("No mappings found; skipping annotation.", file=sys.stderr)
+        record_stage_status(
+            output_dir,
+            "annotation",
+            "skipped",
+            "No MAGs passed the mapping threshold.",
+        )
         return
 
     mapping_csv = output_dir / "metabarcoding_to_MAG_mapping.csv"
@@ -536,6 +794,12 @@ def run_pipeline(args: argparse.Namespace):
                 mags_by_id[get_mag_id(p)] = p
         mag_ids_to_annotate = mapping_df["mag_id"].unique().tolist()
         print(f"[CoSMIC] Annotating {len(mag_ids_to_annotate)} MAG(s) with Prokka...")
+        record_stage_status(
+            output_dir,
+            "annotation",
+            "running",
+            f"Annotating {len(mag_ids_to_annotate)} MAG(s) with Prokka.",
+        )
 
         # Determine which contigs within each MAG have CoSMIC-linked rRNA hits.
         mag_to_contigs: Dict[str, Set[str]] = {}
@@ -551,10 +815,22 @@ def run_pipeline(args: argparse.Namespace):
             annotation_output_dir,
             mag_to_contigs=mag_to_contigs if mag_to_contigs else None,
         )
+        record_stage_status(
+            output_dir,
+            "annotation",
+            "completed",
+            f"Annotated {len(mag_ids_to_annotate)} MAG(s); see {annotation_output_dir}.",
+        )
     else:
         print(
             f"Annotation tool '{annotation_tool}' is not implemented in this script.",
             file=sys.stderr,
+        )
+        record_stage_status(
+            output_dir,
+            "annotation",
+            "skipped",
+            f"Annotation tool '{annotation_tool}' not implemented.",
         )
 
 
@@ -562,6 +838,7 @@ def cmd_extract_rrna(args: argparse.Namespace) -> None:
     config = load_config(args.config)
     mags_dir = Path(args.mags_dir or config.get("mags_dir", "Data"))
     kingdoms = config.get("barrnap_kingdoms", ["bac", "arc", "euk"])
+    barrnap_threads = int(config.get("barrnap_threads") or os.cpu_count() or 1)
     output_dir = Path(args.output_dir or config.get("output_dir", "."))
 
     print(f"Using MAGs directory: {mags_dir}")
@@ -569,7 +846,7 @@ def cmd_extract_rrna(args: argparse.Namespace) -> None:
     output_dir = output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    rrna_records = extract_rrna_from_mags(mags_dir, kingdoms)
+    rrna_records = extract_rrna_from_mags(mags_dir, kingdoms, threads=barrnap_threads)
 
     # Temporarily change working directory for saving outputs
     cwd = Path.cwd()

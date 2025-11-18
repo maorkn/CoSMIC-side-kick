@@ -6,7 +6,8 @@ This repository contains a small Python pipeline that:
 - uses **Barrnap** to extract 16S and 18S rRNA sequences from each MAG,
 - creates a CSV mapping rRNA sequences back to their MAG,
 - takes a metabarcoding CSV (full-length 16S/18S with per-sample relative abundances),
-- maps those metabarcoding sequences to MAG rRNA sequences using a sequence-identity threshold,
+- maps those metabarcoding sequences to MAG rRNA sequences (default: multi-threaded
+  `minimap2`, with an automatic in-Python alignment fallback) using a sequence-identity threshold,
 - and annotates only the MAGs that have at least one metabarcoding hit using **Prokka**.
 
 The main entrypoint is `cosmic_sidekick.py`.
@@ -26,6 +27,7 @@ pip install -r requirements.txt
 The script expects the following tools to be available on your `PATH`:
 
 - **Barrnap** – for rRNA prediction (16S/18S).
+- **Minimap2** – for high-throughput mapping of metabarcoding sequences to MAG rRNA.
 - **Prokka** – for MAG annotation (simpler alternative to Trinotate).
 
 Example installation options (pick what matches your environment):
@@ -33,7 +35,7 @@ Example installation options (pick what matches your environment):
 - Using conda (recommended):
 
   ```bash
-  conda install -c bioconda barrnap prokka
+  conda install -c bioconda barrnap minimap2 prokka
   ```
 
 - Or using your distro’s package manager if available (names may vary):
@@ -58,6 +60,8 @@ The pipeline is configured via `config.yaml`. Key fields:
   - or provide an explicit list of column names.
 - `identity_threshold`: sequence identity threshold for mapping (e.g. `0.97` for 97%).
 - `barrnap_kingdoms`: kingdoms to scan with Barrnap (default: `bac`, `arc`, `euk`).
+- `barrnap_threads`: thread count for Barrnap (null ⇒ auto-detect all cores).
+- `minimap_threads`: thread count for `minimap2` (null ⇒ auto-detect).
 - `annotation_tool`: currently implemented: `prokka`.
 - `annotation_output_dir`: where MAG annotations are written (default: `Annotation/`).
 - `experiment_metadata_yaml`: path to experiment-level metadata in YAML
@@ -65,6 +69,11 @@ The pipeline is configured via `config.yaml`. Key fields:
 - `output_dir`: optional base directory where per-run outputs are written
   when not overridden on the command line (useful for keeping separate
   CoSMIC runs organised, e.g. `run_<MAGs>_<experiment>`).
+  Passing `--output-dir` on the CLI always creates and uses that directory,
+  placing `barrnap_rrna_*`, `metabarcoding_to_MAG_mapping.csv`, and per-MAG
+  `Annotation/` subfolders inside it. Each run also writes
+  `cosmic_stage_status.json` in the same folder to track which pipeline stages
+  completed, skipped, or failed.
 
 The `experiment_metadata_yaml` file lets you describe the CoSMIC experiment context used
 in the downstream LLM-oriented report. Example (see `experiment_metadata.yaml`):
@@ -93,14 +102,14 @@ python cosmic_sidekick.py run --mags-dir Data --metabarcoding your_metabarcoding
 or, relying on `config.yaml`:
 
 ```bash
-python cosmic_sidekick.py run --config config.yaml
+  python cosmic_sidekick.py run --config config.yaml --output-dir run_<MAGs>_<experiment>
 ```
 
 Command-line arguments override values in `config.yaml`.
 
 ## 4. Outputs
 
-Running the full pipeline produces:
+Running the full pipeline produces (under the chosen output directory):
 
 - `barrnap_rrna_mapping.csv` – one row per 16S/18S rRNA feature, with:
   - MAG ID (from filename),
@@ -111,12 +120,14 @@ Running the full pipeline produces:
   - kingdom, product,
   - extracted nucleotide sequence.
 - `barrnap_rrna_sequences.fasta` – FASTA of all extracted rRNA sequences with stable IDs.
-- `metabarcoding_to_MAG_mapping.csv` – rows mapping metabarcoding sequences to MAG rRNA hits:
+- `metabarcoding_to_MAG_mapping.csv` – rows mapping metabarcoding sequences to MAG rRNA hits.
   - metabarcoding ID and sequence,
   - MAG ID and rRNA info,
   - percent identity,
   - all per-sample abundance columns carried through.
 - `Annotation/<MAG_ID>/` – Prokka outputs for each MAG that has at least one metabarcoding hit.
+- `cosmic_stage_status.json` – stage-by-stage status log (`rrna_extraction`,
+  `mapping`, `annotation`) for the run’s output directory.
 - `cosmic_llm_report.md` – LLM-ready markdown report summarizing:
   - MAG metadata (including Prokka summary),
   - CoSMIC experiment metadata from `experiment_metadata.yaml`,
