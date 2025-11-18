@@ -1,0 +1,17 @@
+{
+  "rrna_extraction": {
+    "status": "completed",
+    "timestamp": "2025-11-18T13:36:57.005183+00:00",
+    "details": "1938 rRNA features written to barrnap_rrna_mapping.csv."
+  },
+  "mapping": {
+    "status": "completed",
+    "timestamp": "2025-11-18T13:36:57.225928+00:00",
+    "details": "60 CoSMIC hits across 1 MAG(s)."
+  },
+  "annotation": {
+    "status": "running",
+    "timestamp": "2025-11-18T13:36:57.245831+00:00",
+    "details": "Annotating 1 MAG(s) with Prokka."
+  }
+}

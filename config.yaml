@@ -30,6 +30,9 @@ barrnap_threads: null
 # Threads for minimap2 mapping (null or omitted = use all available cores)
 minimap_threads: null
 
+# Optional explicit path to minimap2 binary (default: resolve via PATH)
+minimap2_bin: /mnt/c/Users/maork/Documents/Papers/CoSMIC side kick/minimap2/minimap2
+
 # Annotation tool configuration
 annotation_tool: prokka
 annotation_output_dir: Annotation

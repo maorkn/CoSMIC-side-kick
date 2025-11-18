@@ -1,0 +1,7 @@
+{
+  "rrna_extraction": {
+    "status": "running",
+    "timestamp": "2025-11-18T13:19:29.922523+00:00",
+    "details": "Running Barrnap on MAGs."
+  }
+}

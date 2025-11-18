@@ -1,7 +1,17 @@
 {
   "rrna_extraction": {
-    "status": "running",
-    "timestamp": "2025-11-18T12:04:14.776703Z",
-    "details": "Running Barrnap on MAGs."
+    "status": "reused",
+    "timestamp": "2025-11-18T12:22:19.654134+00:00",
+    "details": "Using existing Barrnap outputs from barrnap_rrna_mapping.csv."
+  },
+  "mapping": {
+    "status": "completed",
+    "timestamp": "2025-11-18T12:22:19.753340+00:00",
+    "details": "0 CoSMIC hits across 0 MAG(s)."
+  },
+  "annotation": {
+    "status": "skipped",
+    "timestamp": "2025-11-18T12:22:19.767367+00:00",
+    "details": "No MAGs passed the mapping threshold."
   }
 }

@@ -45,7 +45,7 @@ Example installation options (pick what matches your environment):
   sudo apt-get install barrnap prokka
   ```
 
-If `barrnap` or `prokka` are not found, the script will exit (for Barrnap) or skip annotation (for Prokka) with a clear message.
+If `barrnap` or `prokka` are not found, the script will exit (for Barrnap) or skip annotation (for Prokka) with a clear message. Likewise, ensure `minimap2` is either installed into your `PATH` or provide its absolute path via `minimap2_bin` in `config.yaml`.
 
 ## 2. Configuration
 
@@ -62,6 +62,8 @@ The pipeline is configured via `config.yaml`. Key fields:
 - `barrnap_kingdoms`: kingdoms to scan with Barrnap (default: `bac`, `arc`, `euk`).
 - `barrnap_threads`: thread count for Barrnap (null ⇒ auto-detect all cores).
 - `minimap_threads`: thread count for `minimap2` (null ⇒ auto-detect).
+- `minimap2_bin`: optional explicit path to the `minimap2` executable; leave `null` to
+  resolve it from your `PATH`.
 - `annotation_tool`: currently implemented: `prokka`.
 - `annotation_output_dir`: where MAG annotations are written (default: `Annotation/`).
 - `experiment_metadata_yaml`: path to experiment-level metadata in YAML
