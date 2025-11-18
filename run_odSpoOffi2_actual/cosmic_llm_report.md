@@ -1,0 +1,788 @@
+# CoSMIC Composition Report
+
+## MAG Metadata
+### MAG CAXOWC01
+- Assembly path: /mnt/c/Users/maork/Documents/Papers/CoSMIC side kick/Data/CAXOWC01.fa
+- rRNA features: 100 × 16S, 26 × 18S
+
+### MAG CAXOWH01
+- Assembly path: /mnt/c/Users/maork/Documents/Papers/CoSMIC side kick/Data/CAXOWH01.fa
+- rRNA features: 922 × 16S, 238 × 18S
+
+### MAG odSpoOffi2.metagenome.1.primary
+- Assembly path: /mnt/c/Users/maork/Documents/Papers/CoSMIC side kick/Data/odSpoOffi2.metagenome.1.primary.fa.gz
+- rRNA features: 437 × 16S, 215 × 18S
+- organism: Genus species strain
+- contigs: 24
+- bases: 76888657
+- CDS: 68558
+- rRNA: 75
+- tRNA: 885
+- tmRNA: 14
+
+## CoSMIC Experiment Metadata
+- experiment_id: CoSMIC_example_001
+- project: CoSMIC long-read MAG + metabarcoding
+- description: Example experiment metadata; replace with real study details.
+- host: unknown
+- environment: unknown
+- location: unknown
+- date: unknown
+- notes: Update this file with relevant experimental context before running the report command.
+
+## Species / MAG Annotations and Relative Abundances
+### MAG CAXOWC01
+- Relative abundance: not available (no metabarcoding mapping file found).
+- Annotation TSV not found; only presence/absence known.
+
+### MAG CAXOWH01
+- Relative abundance: not available (no metabarcoding mapping file found).
+- Annotation TSV not found; only presence/absence known.
+
+### MAG odSpoOffi2.metagenome.1.primary
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 2.6600
+  - no_2022: 3.9487
+  - small_22: 4.0674
+  - dying: 8.5379
+  - no_23: 7.7353
+- Annotated CDS count: 68558
+- Non-hypothetical CDS count: 27534
+- Most frequent annotated products:
+  - putative protein (n=485)
+  - 3-oxoacyl-[acyl-carrier-protein] reductase FabG (n=143)
+  - Insertion sequence IS5376 putative ATP-binding protein (n=143)
+  - Arylsulfatase (n=114)
+  - Ulvan-active sulfatase (n=113)
+  - Succinate--glutarate CoA-transferase (n=105)
+  - Alkanal monooxygenase alpha chain (n=105)
+  - L-lactate transporter (n=101)
+  - Glutamyl-tRNA(Gln) amidotransferase subunit A (n=86)
+  - N-acetylgalactosamine-6-O-sulfatase (n=80)
+- Top EC numbers (by CDS count):
+  - 3.1.-.- (n=380)
+  - 1.1.1.- (n=268)
+  - 3.1.6.- (n=238)
+  - 1.-.-.- (n=231)
+  - 7.1.1.- (n=213)
+  - 1.3.99.- (n=206)
+  - 1.1.1.100 (n=170)
+  - 7.6.2.- (n=163)
+  - 3.5.2.- (n=158)
+  - 2.2.1.6 (n=125)
+- Top COGs (by CDS count):
+  - COG1028 (n=383)
+  - COG3119 (n=329)
+  - COG2141 (n=254)
+  - COG1960 (n=242)
+  - COG1024 (n=236)
+  - COG1804 (n=181)
+  - COG4948 (n=134)
+  - COG2223 (n=123)
+  - COG0183 (n=115)
+  - COG0601 (n=113)
+
+## Metabarcoding-to-MAG Links
+### Metabarcoding ID 0bf5fde7b2b81d3c30a2b61480df48c4
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0000
+  - no_2022: 0.0631
+  - small_22: 0.0093
+  - dying: 0.0000
+  - no_23: 0.0213
+- Sequence length: 1354 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21660l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21660l|16S|5267182-5268741, identity 98.17%
+    - Contig annotation highlights:
+      - putative protein (n=34)
+      - DNA-invertase hin (n=16)
+      - putative protein YagA (n=13)
+      - Succinate--glutarate CoA-transferase (n=12)
+      - Beta sliding clamp (n=11)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21660l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21660l|16S|5267184-5268733, identity 98.17%
+    - Contig annotation highlights:
+      - putative protein (n=34)
+      - DNA-invertase hin (n=16)
+      - putative protein YagA (n=13)
+      - Succinate--glutarate CoA-transferase (n=12)
+      - Beta sliding clamp (n=11)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21660l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21660l|16S|847818-849377, identity 97.09%
+    - Contig annotation highlights:
+      - putative protein (n=34)
+      - DNA-invertase hin (n=16)
+      - putative protein YagA (n=13)
+      - Succinate--glutarate CoA-transferase (n=12)
+      - Beta sliding clamp (n=11)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21660l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21660l|16S|847820-849369, identity 97.09%
+    - Contig annotation highlights:
+      - putative protein (n=34)
+      - DNA-invertase hin (n=16)
+      - putative protein YagA (n=13)
+      - Succinate--glutarate CoA-transferase (n=12)
+      - Beta sliding clamp (n=11)
+
+### Metabarcoding ID 0d1b2acf65175136acc154605763892b
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.1109
+  - no_2022: 0.0819
+  - small_22: 0.1020
+  - dying: 0.0306
+  - no_23: 0.0636
+- Sequence length: 1348 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg18239l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg18239l|16S|5039-6491, identity 100.00%
+    - Contig annotation highlights:
+      - UDP-N-acetylglucosamine--N-acetylmuramyl-(pentapeptide) pyrophosphoryl-undecaprenol N-acetylglucosamine transferase (n=1)
+      - Glutamate--tRNA ligase 2 (n=1)
+      - putative protein (n=1)
+      - Chaperone protein DnaK (n=1)
+      - Chaperone protein DnaJ 2 (n=1)
+
+### Metabarcoding ID 16753c22f7da7a156b9d24bea2b44652
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.1032
+  - no_2022: 0.0756
+  - small_22: 0.1189
+  - dying: 0.1242
+  - no_23: 0.1432
+- Sequence length: 1581 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21643c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21643c|16S|3482991-3484541, identity 100.00%
+    - Contig annotation highlights:
+      - putative protein (n=81)
+      - Alkanal monooxygenase alpha chain (n=27)
+      - Putative coenzyme F420-dependent oxidoreductase (n=18)
+      - Caprolactamase subunit alpha (n=16)
+      - 3-oxoacyl-[acyl-carrier-protein] reductase FabG (n=15)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21643c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21643c|16S|3482999-3484539, identity 100.00%
+    - Contig annotation highlights:
+      - putative protein (n=81)
+      - Alkanal monooxygenase alpha chain (n=27)
+      - Putative coenzyme F420-dependent oxidoreductase (n=18)
+      - Caprolactamase subunit alpha (n=16)
+      - 3-oxoacyl-[acyl-carrier-protein] reductase FabG (n=15)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21643c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21643c|18S|3483650-3484533, identity 100.00%
+    - Contig annotation highlights:
+      - putative protein (n=81)
+      - Alkanal monooxygenase alpha chain (n=27)
+      - Putative coenzyme F420-dependent oxidoreductase (n=18)
+      - Caprolactamase subunit alpha (n=16)
+      - 3-oxoacyl-[acyl-carrier-protein] reductase FabG (n=15)
+
+### Metabarcoding ID 1aac3c37430c41ce7be3e5506a7bed2d
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0000
+  - no_2022: 0.0000
+  - small_22: 0.0503
+  - dying: 0.0000
+  - no_23: 0.0000
+- Sequence length: 1310 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21654c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21654c|16S|307592-309078, identity 100.00%
+    - Contig annotation highlights:
+      - Insertion sequence IS5376 putative ATP-binding protein (n=60)
+      - C4-dicarboxylate TRAP transporter large permease protein DctM (n=56)
+      - Solute-binding protein (n=31)
+      - Toluene-4-sulfonate monooxygenase system iron-sulfur subunit TsaM1 (n=25)
+      - Caprolactamase subunit beta (n=21)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21654c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21654c|16S|307590-309086, identity 100.00%
+    - Contig annotation highlights:
+      - Insertion sequence IS5376 putative ATP-binding protein (n=60)
+      - C4-dicarboxylate TRAP transporter large permease protein DctM (n=56)
+      - Solute-binding protein (n=31)
+      - Toluene-4-sulfonate monooxygenase system iron-sulfur subunit TsaM1 (n=25)
+      - Caprolactamase subunit beta (n=21)
+
+### Metabarcoding ID 1df81afe8e737164b07cc4f883e69710
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0346
+  - no_2022: 0.0304
+  - small_22: 0.0279
+  - dying: 0.0101
+  - no_23: 0.1450
+- Sequence length: 1227 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21603c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21603c|16S|1859603-1861090, identity 98.55%
+    - Contig annotation highlights:
+      - 5%2C5'-dehydrodivanillate O-demethylase oxygenase subunit (n=35)
+      - Phthalate 4%2C5-dioxygenase oxygenase subunit (n=23)
+      - putative protein (n=14)
+      - L-lactate transporter (n=14)
+      - Gamma-resorcylate decarboxylase (n=10)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21603c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21603c|16S|1859594-1861092, identity 98.55%
+    - Contig annotation highlights:
+      - 5%2C5'-dehydrodivanillate O-demethylase oxygenase subunit (n=35)
+      - Phthalate 4%2C5-dioxygenase oxygenase subunit (n=23)
+      - putative protein (n=14)
+      - L-lactate transporter (n=14)
+      - Gamma-resorcylate decarboxylase (n=10)
+
+### Metabarcoding ID 3ed95ec7c6f2207450d519be037c51ed
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0247
+  - no_2022: 0.0516
+  - small_22: 0.0586
+  - dying: 0.0968
+  - no_23: 0.3614
+- Sequence length: 3592 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21598c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21598c|16S|2675275-2676775, identity 98.80%
+    - Contig annotation highlights:
+      - putative protein (n=26)
+      - putative oxidoreductase (n=11)
+      - Succinyl-CoA:(R)-benzylsuccinate CoA-transferase subunit BbsE (n=10)
+      - Glutathione transport system permease protein GsiD (n=9)
+      - Glutathione transport system permease protein GsiC (n=9)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21598c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21598c|16S|2675277-2676766, identity 98.79%
+    - Contig annotation highlights:
+      - putative protein (n=26)
+      - putative oxidoreductase (n=11)
+      - Succinyl-CoA:(R)-benzylsuccinate CoA-transferase subunit BbsE (n=10)
+      - Glutathione transport system permease protein GsiD (n=9)
+      - Glutathione transport system permease protein GsiC (n=9)
+
+### Metabarcoding ID 48ea8f5a74633f10cfd7b33900ad6391
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0596
+  - no_2022: 0.0624
+  - small_22: 0.0590
+  - dying: 0.0629
+  - no_23: 0.0431
+- Sequence length: 1369 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21612c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21612c|16S|2448327-2449882, identity 98.92%
+    - Contig annotation highlights:
+      - putative protein (n=15)
+      - Isopenicillin N epimerase (n=12)
+      - Putative transposase InsK for insertion sequence element IS150 (n=9)
+      - Serine/threonine exchanger SteT (n=9)
+      - Ulvan-active sulfatase (n=9)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21612c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21612c|16S|2448329-2449873, identity 98.92%
+    - Contig annotation highlights:
+      - putative protein (n=15)
+      - Isopenicillin N epimerase (n=12)
+      - Putative transposase InsK for insertion sequence element IS150 (n=9)
+      - Serine/threonine exchanger SteT (n=9)
+      - Ulvan-active sulfatase (n=9)
+
+### Metabarcoding ID 569abb839e085c8c69cea0a48638a585
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.1902
+  - no_2022: 0.3351
+  - small_22: 0.1927
+  - dying: 0.2497
+  - no_23: 0.1321
+- Sequence length: 1363 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21451l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21451l|16S|928737-930243, identity 98.78%
+    - Contig annotation highlights:
+      - putative protein (n=17)
+      - Putative coenzyme F420-dependent oxidoreductase (n=3)
+      - Carbon monoxide dehydrogenase large chain (n=3)
+      - D-aminoacylase (n=2)
+      - Acyl-CoA dehydrogenase IpdE1 (n=2)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21451l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21451l|16S|928735-930251, identity 98.78%
+    - Contig annotation highlights:
+      - putative protein (n=17)
+      - Putative coenzyme F420-dependent oxidoreductase (n=3)
+      - Carbon monoxide dehydrogenase large chain (n=3)
+      - D-aminoacylase (n=2)
+      - Acyl-CoA dehydrogenase IpdE1 (n=2)
+
+### Metabarcoding ID 61c12cfee7871f0ef2f8d2691afaff17
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0180
+  - no_2022: 0.0190
+  - small_22: 0.0000
+  - dying: 0.0989
+  - no_23: 0.0000
+- Sequence length: 1295 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21627l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21627l|16S|3378531-3380022, identity 98.26%
+    - Contig annotation highlights:
+      - N-acetylgalactosamine-6-O-sulfatase (n=29)
+      - Ulvan-active sulfatase (n=24)
+      - Arylsulfatase (n=20)
+      - putative protein (n=14)
+      - Sulfatase (n=7)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21627l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21627l|16S|3378523-3380024, identity 98.26%
+    - Contig annotation highlights:
+      - N-acetylgalactosamine-6-O-sulfatase (n=29)
+      - Ulvan-active sulfatase (n=24)
+      - Arylsulfatase (n=20)
+      - putative protein (n=14)
+      - Sulfatase (n=7)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21627l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21627l|16S|6159-7660, identity 97.83%
+    - Contig annotation highlights:
+      - N-acetylgalactosamine-6-O-sulfatase (n=29)
+      - Ulvan-active sulfatase (n=24)
+      - Arylsulfatase (n=20)
+      - putative protein (n=14)
+      - Sulfatase (n=7)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21627l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21627l|16S|6161-7652, identity 97.83%
+    - Contig annotation highlights:
+      - N-acetylgalactosamine-6-O-sulfatase (n=29)
+      - Ulvan-active sulfatase (n=24)
+      - Arylsulfatase (n=20)
+      - putative protein (n=14)
+      - Sulfatase (n=7)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21627l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21627l|16S|1664426-1665927, identity 97.83%
+    - Contig annotation highlights:
+      - N-acetylgalactosamine-6-O-sulfatase (n=29)
+      - Ulvan-active sulfatase (n=24)
+      - Arylsulfatase (n=20)
+      - putative protein (n=14)
+      - Sulfatase (n=7)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21627l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21627l|16S|1664434-1665925, identity 97.83%
+    - Contig annotation highlights:
+      - N-acetylgalactosamine-6-O-sulfatase (n=29)
+      - Ulvan-active sulfatase (n=24)
+      - Arylsulfatase (n=20)
+      - putative protein (n=14)
+      - Sulfatase (n=7)
+
+### Metabarcoding ID 6eab3bee1f391767fc917a0af4c6b1ec
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0658
+  - no_2022: 0.2359
+  - small_22: 0.1405
+  - dying: 0.0622
+  - no_23: 0.1649
+- Sequence length: 1508 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21655l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21655l|16S|5166403-5167944, identity 99.87%
+    - Contig annotation highlights:
+      - Arylsulfatase (n=42)
+      - Ulvan-active sulfatase (n=41)
+      - putative protein (n=19)
+      - N-acetylgalactosamine-6-O-sulfatase (n=16)
+      - D-galactonate dehydratase (n=13)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21655l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21655l|16S|5166411-5167942, identity 99.87%
+    - Contig annotation highlights:
+      - Arylsulfatase (n=42)
+      - Ulvan-active sulfatase (n=41)
+      - putative protein (n=19)
+      - N-acetylgalactosamine-6-O-sulfatase (n=16)
+      - D-galactonate dehydratase (n=13)
+
+### Metabarcoding ID 81d6cc4a1092411e72985c2873377c64
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0137
+  - no_2022: 0.0418
+  - small_22: 0.0525
+  - dying: 0.0096
+  - no_23: 0.2162
+- Sequence length: 1513 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21541l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21541l|16S|1179249-1180787, identity 97.53%
+    - Contig annotation highlights:
+      - putative protein (n=11)
+      - 3-oxoacyl-[acyl-carrier-protein] reductase FabG (n=9)
+      - High-affinity branched-chain amino acid transport ATP-binding protein LivF (n=8)
+      - Lipopolysaccharide export system ATP-binding protein LptB (n=7)
+      - 2-hydroxy-3-oxopropionate reductase (n=6)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21541l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21541l|16S|1179241-1180789, identity 97.53%
+    - Contig annotation highlights:
+      - putative protein (n=11)
+      - 3-oxoacyl-[acyl-carrier-protein] reductase FabG (n=9)
+      - High-affinity branched-chain amino acid transport ATP-binding protein LivF (n=8)
+      - Lipopolysaccharide export system ATP-binding protein LptB (n=7)
+      - 2-hydroxy-3-oxopropionate reductase (n=6)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21496l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21496l|16S|559873-561411, identity 97.53%
+    - Contig annotation highlights:
+      - putative protein (n=8)
+      - High-affinity branched-chain amino acid transport ATP-binding protein LivF (n=7)
+      - 3-oxoacyl-[acyl-carrier-protein] reductase FabG (n=6)
+      - Acyl-CoA dehydrogenase (n=6)
+      - Lipopolysaccharide export system ATP-binding protein LptB (n=6)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21496l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21496l|16S|559865-561413, identity 97.53%
+    - Contig annotation highlights:
+      - putative protein (n=8)
+      - High-affinity branched-chain amino acid transport ATP-binding protein LivF (n=7)
+      - 3-oxoacyl-[acyl-carrier-protein] reductase FabG (n=6)
+      - Acyl-CoA dehydrogenase (n=6)
+      - Lipopolysaccharide export system ATP-binding protein LptB (n=6)
+
+### Metabarcoding ID 85504a79db0f97c456e735769ad921ed
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0348
+  - no_2022: 0.0202
+  - small_22: 0.0506
+  - dying: 0.0000
+  - no_23: 0.1096
+- Sequence length: 1364 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21589l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21589l|16S|1711842-1713400, identity 97.14%
+    - Contig annotation highlights:
+      - putative protein (n=17)
+      - Dipeptidyl-peptidase 5 (n=9)
+      - Glutamyl-tRNA(Gln) amidotransferase subunit A (n=5)
+      - Glutathione hydrolase-like YwrD proenzyme (n=4)
+      - N-substituted formamide deformylase (n=3)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21589l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21589l|16S|1711851-1713398, identity 97.14%
+    - Contig annotation highlights:
+      - putative protein (n=17)
+      - Dipeptidyl-peptidase 5 (n=9)
+      - Glutamyl-tRNA(Gln) amidotransferase subunit A (n=5)
+      - Glutathione hydrolase-like YwrD proenzyme (n=4)
+      - N-substituted formamide deformylase (n=3)
+
+### Metabarcoding ID 94e94db16b05c6e57ee72314daca7343
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0000
+  - no_2022: 0.0630
+  - small_22: 0.0146
+  - dying: 0.0169
+  - no_23: 0.0180
+- Sequence length: 1312 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg12905l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg12905l|16S|7927-9459, identity 97.53%
+    - Contig annotation highlights:
+      - Glutamate-1-semialdehyde 2%2C1-aminomutase (n=1)
+      - Iron-sulfur cluster insertion protein ErpA (n=1)
+      - Anhydro-N-acetylmuramic acid kinase (n=1)
+      - Murein DD-endopeptidase MepM (n=1)
+      - Tyrosine--tRNA ligase (n=1)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg12905l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg12905l|16S|7889-9460, identity 97.53%
+    - Contig annotation highlights:
+      - Glutamate-1-semialdehyde 2%2C1-aminomutase (n=1)
+      - Iron-sulfur cluster insertion protein ErpA (n=1)
+      - Anhydro-N-acetylmuramic acid kinase (n=1)
+      - Murein DD-endopeptidase MepM (n=1)
+      - Tyrosine--tRNA ligase (n=1)
+
+### Metabarcoding ID a6f65a224b578052070a7485f5f4d538
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0000
+  - no_2022: 0.0000
+  - small_22: 0.0016
+  - dying: 0.0000
+  - no_23: 0.0819
+- Sequence length: 1233 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21603c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21603c|16S|1859603-1861090, identity 98.21%
+    - Contig annotation highlights:
+      - 5%2C5'-dehydrodivanillate O-demethylase oxygenase subunit (n=35)
+      - Phthalate 4%2C5-dioxygenase oxygenase subunit (n=23)
+      - putative protein (n=14)
+      - L-lactate transporter (n=14)
+      - Gamma-resorcylate decarboxylase (n=10)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21603c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21603c|16S|1859594-1861092, identity 98.21%
+    - Contig annotation highlights:
+      - 5%2C5'-dehydrodivanillate O-demethylase oxygenase subunit (n=35)
+      - Phthalate 4%2C5-dioxygenase oxygenase subunit (n=23)
+      - putative protein (n=14)
+      - L-lactate transporter (n=14)
+      - Gamma-resorcylate decarboxylase (n=10)
+
+### Metabarcoding ID cc2ab37b51e288ed01d540f059589876
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.1465
+  - no_2022: 0.2017
+  - small_22: 0.2092
+  - dying: 1.4186
+  - no_23: 0.2284
+- Sequence length: 1496 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21642c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21642c|16S|2309073-2310621, identity 99.63%
+    - Contig annotation highlights:
+      - putative protein (n=30)
+      - Arylsulfatase (n=12)
+      - Quinate/shikimate dehydrogenase (quinone) (n=12)
+      - N-acetylgalactosamine-6-O-sulfatase (n=11)
+      - Ulvan-active sulfatase (n=10)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21642c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21642c|16S|2309071-2310629, identity 99.63%
+    - Contig annotation highlights:
+      - putative protein (n=30)
+      - Arylsulfatase (n=12)
+      - Quinate/shikimate dehydrogenase (quinone) (n=12)
+      - N-acetylgalactosamine-6-O-sulfatase (n=11)
+      - Ulvan-active sulfatase (n=10)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21639c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21639c|16S|3420861-3422409, identity 98.30%
+    - Contig annotation highlights:
+      - putative protein (n=26)
+      - Quinate/shikimate dehydrogenase (quinone) (n=11)
+      - N-acetylgalactosamine-6-O-sulfatase (n=11)
+      - Ulvan-active sulfatase (n=10)
+      - Arylsulfatase (n=9)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21639c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21639c|16S|3420859-3422417, identity 98.30%
+    - Contig annotation highlights:
+      - putative protein (n=26)
+      - Quinate/shikimate dehydrogenase (quinone) (n=11)
+      - N-acetylgalactosamine-6-O-sulfatase (n=11)
+      - Ulvan-active sulfatase (n=10)
+      - Arylsulfatase (n=9)
+
+### Metabarcoding ID d0dfdda5f3e5b1fa0df83c66e85a6114
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0233
+  - no_2022: 0.0392
+  - small_22: 0.1034
+  - dying: 0.0274
+  - no_23: 0.2210
+- Sequence length: 1233 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg16643l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg16643l|16S|23658-25156, identity 97.36%
+    - Contig annotation highlights:
+      - Fumarate hydratase class II (n=1)
+      - Oxygen-dependent choline dehydrogenase (n=1)
+      - Glutamate synthase [NADPH] small chain (n=1)
+      - Ferredoxin-dependent glutamate synthase 1 (n=1)
+      - Ribosomal silencing factor RsfS (n=1)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21671l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21671l|16S|1302819-1304326, identity 97.36%
+    - Contig annotation highlights:
+      - putative protein (n=54)
+      - Alkanal monooxygenase alpha chain (n=37)
+      - Oxygen-dependent choline dehydrogenase (n=29)
+      - L-lactate transporter (n=25)
+      - Succinate--glutarate CoA-transferase (n=25)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21671l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21671l|16S|1302821-1304319, identity 97.36%
+    - Contig annotation highlights:
+      - putative protein (n=54)
+      - Alkanal monooxygenase alpha chain (n=37)
+      - Oxygen-dependent choline dehydrogenase (n=29)
+      - L-lactate transporter (n=25)
+      - Succinate--glutarate CoA-transferase (n=25)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg16643l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg16643l|16S|23656-25163, identity 97.36%
+    - Contig annotation highlights:
+      - Fumarate hydratase class II (n=1)
+      - Oxygen-dependent choline dehydrogenase (n=1)
+      - Glutamate synthase [NADPH] small chain (n=1)
+      - Ferredoxin-dependent glutamate synthase 1 (n=1)
+      - Ribosomal silencing factor RsfS (n=1)
+
+### Metabarcoding ID d2292a6d3c2c97280bd82c74a7ee2559
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0669
+  - no_2022: 0.0748
+  - small_22: 0.1015
+  - dying: 0.0902
+  - no_23: 0.0236
+- Sequence length: 1389 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21611c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21611c|16S|1938350-1939861, identity 99.39%
+    - Contig annotation highlights:
+      - putative protein (n=30)
+      - Toxin FitB (n=6)
+      - Quinohemoprotein alcohol dehydrogenase ADH IIB (n=6)
+      - Glycerol dehydrogenase large subunit (n=6)
+      - Toxin RTX-I translocation ATP-binding protein (n=6)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21611c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21611c|16S|1938349-1939891, identity 99.39%
+    - Contig annotation highlights:
+      - putative protein (n=30)
+      - Toxin FitB (n=6)
+      - Quinohemoprotein alcohol dehydrogenase ADH IIB (n=6)
+      - Glycerol dehydrogenase large subunit (n=6)
+      - Toxin RTX-I translocation ATP-binding protein (n=6)
+
+### Metabarcoding ID dced0c541b19a7bcb2be7fb5d490a930
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0348
+  - no_2022: 0.0583
+  - small_22: 0.0968
+  - dying: 0.0355
+  - no_23: 0.4924
+- Sequence length: 1784 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21613c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21613c|16S|2836405-2837913, identity 98.20%
+    - Contig annotation highlights:
+      - Insertion sequence IS5376 putative ATP-binding protein (n=33)
+      - putative protein (n=22)
+      - Alkanal monooxygenase alpha chain (n=20)
+      - Oxygen-dependent choline dehydrogenase (n=15)
+      - L-lactate transporter (n=14)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21613c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21613c|16S|2836407-2837906, identity 98.19%
+    - Contig annotation highlights:
+      - Insertion sequence IS5376 putative ATP-binding protein (n=33)
+      - putative protein (n=22)
+      - Alkanal monooxygenase alpha chain (n=20)
+      - Oxygen-dependent choline dehydrogenase (n=15)
+      - L-lactate transporter (n=14)
+
+### Metabarcoding ID de4b5a8931a32852842ebf2d2ad838a7
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0785
+  - no_2022: 0.0503
+  - small_22: 0.0896
+  - dying: 0.1866
+  - no_23: 0.4264
+- Sequence length: 1710 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21611c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21611c|16S|1938349-1939891, identity 97.59%
+    - Contig annotation highlights:
+      - putative protein (n=30)
+      - Toxin FitB (n=6)
+      - Quinohemoprotein alcohol dehydrogenase ADH IIB (n=6)
+      - Glycerol dehydrogenase large subunit (n=6)
+      - Toxin RTX-I translocation ATP-binding protein (n=6)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21611c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21611c|16S|1938350-1939861, identity 97.33%
+    - Contig annotation highlights:
+      - putative protein (n=30)
+      - Toxin FitB (n=6)
+      - Quinohemoprotein alcohol dehydrogenase ADH IIB (n=6)
+      - Glycerol dehydrogenase large subunit (n=6)
+      - Toxin RTX-I translocation ATP-binding protein (n=6)
+
+### Metabarcoding ID e7e974d8c1cfbaa854f89ba2139ab35b
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0563
+  - no_2022: 0.0215
+  - small_22: 0.0236
+  - dying: 0.0717
+  - no_23: 0.0000
+- Sequence length: 1348 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21347c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21347c|18S|163388-164226, identity 100.00%
+    - Contig annotation highlights:
+      - Cell shape-determining protein MreB (n=2)
+      - DNA methyltransferase CcrM (n=2)
+      - Type IV pilus assembly ATPase PilB (n=2)
+      - Adenylate kinase (n=2)
+      - Apulose-4-phosphate transketolase subunit A (n=1)
+
+### Metabarcoding ID eba9119a20a65016266d5821dae40fd0
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0000
+  - no_2022: 0.0000
+  - small_22: 0.0572
+  - dying: 0.0000
+  - no_23: 0.0008
+- Sequence length: 1348 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21622c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21622c|16S|629608-631151, identity 100.00%
+    - Contig annotation highlights:
+      - putative protein (n=25)
+      - putative protein YejA (n=24)
+      - Ulvan-active sulfatase (n=16)
+      - Arylsulfatase (n=14)
+      - Iron and copper transporter IacT (n=10)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21622c, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21622c|16S|629609-631113, identity 100.00%
+    - Contig annotation highlights:
+      - putative protein (n=25)
+      - putative protein YejA (n=24)
+      - Ulvan-active sulfatase (n=16)
+      - Arylsulfatase (n=14)
+      - Iron and copper transporter IacT (n=10)
+
+### Metabarcoding ID ef507bdfc53682f71952123776de8af0
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0000
+  - no_2022: 0.0000
+  - small_22: 0.0562
+  - dying: 0.0000
+  - no_23: 0.0000
+- Sequence length: 1407 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg16708l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg16708l|16S|7652-9172, identity 99.41%
+    - Contig annotation highlights:
+      - Carbon monoxide dehydrogenase medium chain (n=1)
+      - 4-hydroxybenzoyl-CoA reductase subunit alpha (n=1)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg16708l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg16708l|16S|7626-9174, identity 99.41%
+    - Contig annotation highlights:
+      - Carbon monoxide dehydrogenase medium chain (n=1)
+      - 4-hydroxybenzoyl-CoA reductase subunit alpha (n=1)
+
+### Metabarcoding ID f48863676db92631d0f5cb7a08288fac
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0464
+  - no_2022: 0.0000
+  - small_22: 0.0085
+  - dying: 0.0000
+  - no_23: 0.0000
+- Sequence length: 1308 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21550l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21550l|16S|127865-129369, identity 97.78%
+    - Contig annotation highlights:
+      - putative protein (n=23)
+      - Steroid C26-monooxygenase (n=6)
+      - 4-methylaminobutanoate oxidase (formaldehyde-forming) (n=5)
+      - Putative acyl-CoA dehydrogenase FadE17 (n=4)
+      - Alpha-ketoglutarate-dependent taurine dioxygenase (n=4)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21550l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21550l|16S|127858-129371, identity 97.78%
+    - Contig annotation highlights:
+      - putative protein (n=23)
+      - Steroid C26-monooxygenase (n=6)
+      - 4-methylaminobutanoate oxidase (formaldehyde-forming) (n=5)
+      - Putative acyl-CoA dehydrogenase FadE17 (n=4)
+      - Alpha-ketoglutarate-dependent taurine dioxygenase (n=4)
+
+### Metabarcoding ID f960324f570a864337ffbca45181dd0d
+- Relative abundance per sample (CoSMIC metabarcoding):
+  - no_20: 0.0228
+  - no_2022: 0.0521
+  - small_22: 0.0257
+  - dying: 0.0085
+  - no_23: 0.1653
+- Sequence length: 1424 bp
+- MAG hits:
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21660l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21660l|16S|5267184-5268733, identity 98.26%
+    - Contig annotation highlights:
+      - putative protein (n=34)
+      - DNA-invertase hin (n=16)
+      - putative protein YagA (n=13)
+      - Succinate--glutarate CoA-transferase (n=12)
+      - Beta sliding clamp (n=11)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21660l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21660l|16S|5267182-5268741, identity 98.26%
+    - Contig annotation highlights:
+      - putative protein (n=34)
+      - DNA-invertase hin (n=16)
+      - putative protein YagA (n=13)
+      - Succinate--glutarate CoA-transferase (n=12)
+      - Beta sliding clamp (n=11)
+  - MAG odSpoOffi2.metagenome.1.primary, contig ctg21660l, rRNA hit odSpoOffi2.metagenome.1.primary|ctg21660l|16S|847818-849377, identity 100.00%
+    - Contig annotation highlights:
+      - putative protein (n=34)
+      - DNA-invertase hin (n=16)
+      - putative protein YagA (n=13)
+      - Succinate--glutarate CoA-transferase (n=12)
+      - Beta sliding clamp (n=11)
+
+## Community-Level Functional Summary
+- Top community EC numbers (abundance-weighted):
+  - 3.1.-.- (weighted count ~ 10240.74)
+  - 1.1.1.- (weighted count ~ 7222.42)
+  - 3.1.6.- (weighted count ~ 6413.94)
+  - 1.-.-.- (weighted count ~ 6225.29)
+  - 7.1.1.- (weighted count ~ 5740.21)
+  - 1.3.99.- (weighted count ~ 5551.56)
+  - 1.1.1.100 (weighted count ~ 4581.38)
+  - 7.6.2.- (weighted count ~ 4392.74)
+  - 3.5.2.- (weighted count ~ 4257.99)
+  - 2.2.1.6 (weighted count ~ 3368.66)
+  - 2.8.3.- (weighted count ~ 3368.66)
+  - 3.1.6.1 (weighted count ~ 3072.22)
+  - 4.2.1.- (weighted count ~ 3045.27)
+  - 1.2.5.3 (weighted count ~ 3018.32)
+  - 1.14.14.3 (weighted count ~ 2829.68)
+  - 1.14.13.- (weighted count ~ 2667.98)
+  - 3.1.1.- (weighted count ~ 2614.08)
+  - 3.5.1.- (weighted count ~ 2479.34)
+  - 1.14.14.- (weighted count ~ 2452.39)
+  - 4.2.1.150 (weighted count ~ 2452.39)
+- Top community COGs (abundance-weighted):
+  - COG1028 (weighted count ~ 10321.59)
+  - COG3119 (weighted count ~ 8866.33)
+  - COG2141 (weighted count ~ 6845.13)
+  - COG1960 (weighted count ~ 6521.74)
+  - COG1024 (weighted count ~ 6360.04)
+  - COG1804 (weighted count ~ 4877.83)
+  - COG4948 (weighted count ~ 3611.21)
+  - COG2223 (weighted count ~ 3314.77)
+  - COG0183 (weighted count ~ 3099.17)
+  - COG0601 (weighted count ~ 3045.27)
+  - COG0028 (weighted count ~ 3018.32)
+  - COG0673 (weighted count ~ 2910.53)
+  - COG0318 (weighted count ~ 2533.24)
+  - COG2267 (weighted count ~ 2236.79)
+  - COG2124 (weighted count ~ 2236.79)
+  - COG0154 (weighted count ~ 2182.89)
+  - COG1373 (weighted count ~ 2155.95)
+  - COG3653 (weighted count ~ 2155.95)
+  - COG1136 (weighted count ~ 2155.95)
+  - COG1173 (weighted count ~ 2129.00)
+
+## LLM Query
+Given the MAG metadata, CoSMIC experiment metadata, species/MAG annotations, and relative abundances described above, answer the following:
+
+1. Based on this community composition, what types of environments or substrates is this population likely engaging with?
+2. What biosynthetic and metabolic processes are likely active in this microbial community, and which MAGs/species appear to contribute to these functions?

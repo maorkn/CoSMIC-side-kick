@@ -13,7 +13,12 @@ metabarcoding_sequence_column: sequence
 
 # Optional explicit list of abundance columns. If null, they are auto-detected
 # as all numeric columns except id and sequence.
-metabarcoding_abundance_columns: null
+metabarcoding_abundance_columns:
+  - no_20
+  - no_2022
+  - small_22
+  - dying
+  - no_23
 
 # Identity threshold for mapping metabarcoding sequences to MAG rRNA sequences.
 identity_threshold: 0.97

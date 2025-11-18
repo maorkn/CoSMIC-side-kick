@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from dataclasses import dataclass
 from pathlib import Path
@@ -620,6 +621,51 @@ def map_metabarcoding_to_rrna(
     )
 
 
+def parse_gff_attributes(attr_str: str) -> Dict[str, str]:
+    attrs: Dict[str, str] = {}
+    for field in attr_str.split(";"):
+        if not field:
+            continue
+        if "=" in field:
+            key, val = field.split("=", 1)
+            attrs[key.strip()] = val.strip()
+    return attrs
+
+
+def load_contig_annotations_from_gff(gff_path: Path) -> Dict[str, Dict[str, List[str]]]:
+    contig_data: Dict[str, Dict[str, List[str]]] = defaultdict(lambda: {"products": []})
+    if not gff_path.exists():
+        return {}
+
+    with gff_path.open() as fh:
+        for line in fh:
+            if not line or line.startswith("#"):
+                continue
+            parts = line.strip().split("\t")
+            if len(parts) != 9:
+                continue
+            seqid, source, feature_type, start, end, score, strand, phase, attributes = parts
+            if feature_type != "CDS":
+                continue
+            attrs = parse_gff_attributes(attributes)
+            product = attrs.get("product", "").strip()
+            if product:
+                contig_data[seqid]["products"].append(product)
+    # Convert default dict to normal dict for serialization-friendly behaviour
+    return {k: v for k, v in contig_data.items()}
+
+
+def summarize_contig_products(products: List[str], max_items: int = 5) -> List[str]:
+    meaningful = [p for p in products if p and "hypothetical" not in p.lower()]
+    counts = Counter(meaningful)
+    if not counts:
+        return ["No non-hypothetical CDS annotations recorded on this contig."]
+    lines: List[str] = []
+    for product, count in counts.most_common(max_items):
+        lines.append(f"{product} (n={count})")
+    return lines
+
+
 def run_prokka_on_mags(
     mags_by_id: Dict[str, Path],
     mag_ids_to_annotate: Sequence[str],
@@ -1070,6 +1116,8 @@ def cmd_report(args: argparse.Namespace) -> None:
                 "sequence_header",
                 "rrna_type",
                 "identity",
+                "alignment_length",
+                "matches",
             }
             and pd.api.types.is_numeric_dtype(mapping_df[c])
         ]
@@ -1111,6 +1159,11 @@ def cmd_report(args: argparse.Namespace) -> None:
                 for ln in summary_lines:
                     lines.append(f"- {ln}")
             lines.append("")
+
+    contig_annotation_cache: Dict[str, Dict[str, Dict[str, List[str]]]] = {}
+    for mag_id in mag_ids:
+        gff_path = mag_annotation_dir / mag_id / f"{mag_id}.gff"
+        contig_annotation_cache[mag_id] = load_contig_annotations_from_gff(gff_path)
 
     # Experiment metadata
     lines.append("## CoSMIC Experiment Metadata")
@@ -1211,6 +1264,36 @@ def cmd_report(args: argparse.Namespace) -> None:
             else:
                 lines.append("- Annotation TSV not found; only presence/absence known.")
 
+            lines.append("")
+
+    if has_mapping and not mapping_df.empty:
+        lines.append("## Metabarcoding-to-MAG Links")
+        for meta_id, meta_group in mapping_df.groupby("metabarcoding_id"):
+            lines.append(f"### Metabarcoding ID {meta_id}")
+            meta_seq = str(meta_group["metabarcoding_sequence"].iloc[0])
+            if abundance_cols:
+                lines.append("- Relative abundance per sample (CoSMIC metabarcoding):")
+                for col in abundance_cols:
+                    val = meta_group[col].iloc[0]
+                    lines.append(f"  - {col}: {val:.4f}")
+            lines.append(f"- Sequence length: {len(meta_seq)} bp")
+            lines.append("- MAG hits:")
+            for _, row in meta_group.iterrows():
+                mag_id = row["mag_id"]
+                contig = row["sequence_header"]
+                identity = row.get("identity", 0.0)
+                rrna_uid = row.get("rrna_uid", "")
+                lines.append(
+                    f"  - MAG {mag_id}, contig {contig}, rRNA hit {rrna_uid}, identity {identity:.2%}"
+                )
+                contig_data = contig_annotation_cache.get(mag_id, {}).get(contig)
+                if contig_data and contig_data.get("products"):
+                    product_summaries = summarize_contig_products(contig_data["products"])
+                    lines.append("    - Contig annotation highlights:")
+                    for prod in product_summaries:
+                        lines.append(f"      - {prod}")
+                else:
+                    lines.append("    - No contig-level annotations available for this hit.")
             lines.append("")
 
     # Community-level aggregation of ECs and COGs, weighted by MAG abundance

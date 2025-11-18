@@ -29,6 +29,12 @@ The script expects the following tools to be available on your `PATH`:
 - **Barrnap** – for rRNA prediction (16S/18S).
 - **Minimap2** – for high-throughput mapping of metabarcoding sequences to MAG rRNA.
 - **Prokka** – for MAG annotation (simpler alternative to Trinotate).
+- **eggNOG-mapper** – optional, for the richer report. You must also download its
+  annotation/taxonomy/DIAMOND databases using the bundled `download_eggnog_data.py`.
+  Note that the URLs hardcoded in the Bioconda release are stale; update the script
+  to point at `http://eggnog5.embl.de` (as per upstream GitHub issue #213) or download
+  the files manually from a working mirror such as
+  `https://ftp.ebi.ac.uk/pub/databases/eggnog/eggnog_5.0/emapperdb-5.0.0/`.
 
 Example installation options (pick what matches your environment):
 
@@ -127,7 +133,9 @@ Running the full pipeline produces (under the chosen output directory):
   - MAG ID and rRNA info,
   - percent identity,
   - all per-sample abundance columns carried through.
-- `Annotation/<MAG_ID>/` – Prokka outputs for each MAG that has at least one metabarcoding hit.
+  - `Annotation/<MAG_ID>/` – Prokka outputs for each MAG that has at least one metabarcoding hit.
+- `eggNOG_output/` – (optional) results from `Richer_report.py --run-eggnog` when
+  eggNOG-mapper is installed and its databases available.
 - `cosmic_stage_status.json` – stage-by-stage status log (`rrna_extraction`,
   `mapping`, `annotation`) for the run’s output directory.
 - `cosmic_llm_report.md` – LLM-ready markdown report summarizing:

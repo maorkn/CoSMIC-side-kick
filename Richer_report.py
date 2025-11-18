@@ -37,6 +37,8 @@ Notes:
 """
 
 import argparse
+import io
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -92,7 +94,24 @@ def summarize_dram_genome_summary(path: Path) -> List[str]:
     if not path or not path.exists():
         return lines
 
-    df = pd.read_csv(path, sep="\t")
+    header: Optional[str] = None
+    data_lines: List[str] = []
+    with path.open() as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            if line.startswith("##"):
+                continue
+            if line.startswith("#"):
+                header = line.lstrip("#").strip()
+                continue
+            data_lines.append(line)
+
+    if header is None:
+        return lines
+
+    buffer = io.StringIO(header + "\n" + "".join(data_lines))
+    df = pd.read_csv(buffer, sep="\t")
     id_col = detect_id_column(df, ["genome", "Genome", "bin", "Bin", "MAG", "mag_id"])
     if id_col is None:
         id_col = df.columns[0]
@@ -487,7 +506,28 @@ def run_eggnog_mapper(
         str(prefix),
         "--cpu",
         str(threads),
+        "--override",
     ]
+
+    data_dir = os.environ.get("EGGNOG_DATA_DIR")
+    if data_dir:
+        cmd.extend(["--data_dir", data_dir])
+
+    db_path: Optional[Path] = None
+    custom_db = os.environ.get("EGGNOG_DIAMOND_DB")
+    if custom_db:
+        db_path = Path(custom_db)
+    elif data_dir:
+        candidate = Path(data_dir) / "bacteria.dmnd"
+        if candidate.exists():
+            db_path = candidate
+        else:
+            default_db = Path(data_dir) / "eggnog_proteins.dmnd"
+            if default_db.exists():
+                db_path = default_db
+
+    if db_path:
+        cmd.extend(["--dmnd_db", str(db_path)])
 
     if not run_command(cmd):
         return None

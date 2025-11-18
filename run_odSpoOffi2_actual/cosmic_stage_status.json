@@ -10,8 +10,8 @@
     "details": "60 CoSMIC hits across 1 MAG(s)."
   },
   "annotation": {
-    "status": "running",
-    "timestamp": "2025-11-18T13:36:57.245831+00:00",
-    "details": "Annotating 1 MAG(s) with Prokka."
+    "status": "completed",
+    "timestamp": "2025-11-18T13:57:49.197214+00:00",
+    "details": "Annotated 1 MAG(s); see /mnt/c/Users/maork/Documents/Papers/CoSMIC side kick/run_odSpoOffi2_actual/Annotation."
   }
 }
