@@ -1,5 +1,6 @@
 import argparse
 import gzip
+import io
 import json
 import os
 import random
@@ -621,6 +622,14 @@ def map_metabarcoding_to_rrna(
     )
 
 
+def detect_id_column(df: pd.DataFrame, candidates: Sequence[str]) -> Optional[str]:
+    lower_map = {c.lower(): c for c in df.columns}
+    for cand in candidates:
+        if cand.lower() in lower_map:
+            return lower_map[cand.lower()]
+    return None
+
+
 def parse_gff_attributes(attr_str: str) -> Dict[str, str]:
     attrs: Dict[str, str] = {}
     for field in attr_str.split(";"):
@@ -632,10 +641,15 @@ def parse_gff_attributes(attr_str: str) -> Dict[str, str]:
     return attrs
 
 
-def load_contig_annotations_from_gff(gff_path: Path) -> Dict[str, Dict[str, List[str]]]:
-    contig_data: Dict[str, Dict[str, List[str]]] = defaultdict(lambda: {"products": []})
+def load_contig_annotations_from_gff(
+    gff_path: Path,
+) -> Tuple[Dict[str, Dict[str, List[str]]], Dict[str, str]]:
+    contig_data: Dict[str, Dict[str, List[str]]] = defaultdict(
+        lambda: {"products": [], "loci": []}
+    )
+    locus_to_contig: Dict[str, str] = {}
     if not gff_path.exists():
-        return {}
+        return {}, {}
 
     with gff_path.open() as fh:
         for line in fh:
@@ -649,10 +663,14 @@ def load_contig_annotations_from_gff(gff_path: Path) -> Dict[str, Dict[str, List
                 continue
             attrs = parse_gff_attributes(attributes)
             product = attrs.get("product", "").strip()
+            locus = attrs.get("ID") or attrs.get("locus_tag")
             if product:
                 contig_data[seqid]["products"].append(product)
+            if locus:
+                contig_data[seqid]["loci"].append(locus)
+                locus_to_contig[locus] = seqid
     # Convert default dict to normal dict for serialization-friendly behaviour
-    return {k: v for k, v in contig_data.items()}
+    return {k: v for k, v in contig_data.items()}, locus_to_contig
 
 
 def summarize_contig_products(products: List[str], max_items: int = 5) -> List[str]:
@@ -664,6 +682,59 @@ def summarize_contig_products(products: List[str], max_items: int = 5) -> List[s
     for product, count in counts.most_common(max_items):
         lines.append(f"{product} (n={count})")
     return lines
+
+
+def summarize_go_terms(go_terms: List[str], max_items: int = 5) -> List[str]:
+    counts = Counter(go_terms)
+    if not counts:
+        return ["No GO annotations recorded for this contig."]
+    lines: List[str] = []
+    for go, count in counts.most_common(max_items):
+        lines.append(f"{go} (n={count})")
+    return lines
+
+
+def load_eggnog_go_terms(path: Path) -> Dict[str, List[str]]:
+    go_map: Dict[str, List[str]] = {}
+    if not path or not path.exists():
+        return go_map
+
+    header: Optional[str] = None
+    data_lines: List[str] = []
+    with path.open() as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            if line.startswith("##"):
+                continue
+            if line.startswith("#"):
+                header = line.lstrip("#").strip()
+                continue
+            data_lines.append(line)
+
+    if not header:
+        return go_map
+
+    buffer = io.StringIO(header + "\n" + "".join(data_lines))
+    df = pd.read_csv(buffer, sep="\t")
+    go_col = detect_id_column(df, ["GOs", "gos", "GO_terms"])
+    query_col = detect_id_column(df, ["query", "protein", "locus_tag"])
+    if not go_col or go_col not in df.columns or not query_col:
+        return go_map
+
+    for _, row in df.iterrows():
+        query = str(row.get(query_col, "")).strip()
+        go_field = row.get(go_col)
+        if not query or not isinstance(go_field, str):
+            continue
+        gos = [
+            go.strip()
+            for go in go_field.replace(";", ",").split(",")
+            if go.strip() and go.strip() not in {"-", "NA"}
+        ]
+        if gos:
+            go_map[query] = gos
+    return go_map
 
 
 def run_prokka_on_mags(
@@ -1161,9 +1232,36 @@ def cmd_report(args: argparse.Namespace) -> None:
             lines.append("")
 
     contig_annotation_cache: Dict[str, Dict[str, Dict[str, List[str]]]] = {}
+    locus_to_contig_cache: Dict[str, Dict[str, str]] = {}
+    global_locus_lookup: Dict[str, Tuple[str, str]] = {}
     for mag_id in mag_ids:
         gff_path = mag_annotation_dir / mag_id / f"{mag_id}.gff"
-        contig_annotation_cache[mag_id] = load_contig_annotations_from_gff(gff_path)
+        contig_annotations, locus_map = load_contig_annotations_from_gff(gff_path)
+        contig_annotation_cache[mag_id] = contig_annotations
+        locus_to_contig_cache[mag_id] = locus_map
+        for locus, contig in locus_map.items():
+            global_locus_lookup[locus] = (mag_id, contig)
+
+    eggnog_go_map: Dict[str, List[str]] = {}
+    if args.eggnog_annotations:
+        eggnog_path = Path(args.eggnog_annotations)
+        if eggnog_path.exists():
+            eggnog_go_map = load_eggnog_go_terms(eggnog_path)
+
+    contig_go_cache: Dict[str, Dict[str, List[str]]] = {}
+    if eggnog_go_map and global_locus_lookup:
+        tmp_cache: Dict[str, Dict[str, List[str]]] = defaultdict(lambda: defaultdict(list))
+        for locus, gos in eggnog_go_map.items():
+            target = global_locus_lookup.get(locus)
+            if not target:
+                continue
+            mag_id, contig = target
+            if gos:
+                tmp_cache[mag_id][contig].extend(gos)
+        contig_go_cache = {
+            mag_id: {contig: gos for contig, gos in contig_map.items()}
+            for mag_id, contig_map in tmp_cache.items()
+        }
 
     # Experiment metadata
     lines.append("## CoSMIC Experiment Metadata")
@@ -1294,6 +1392,11 @@ def cmd_report(args: argparse.Namespace) -> None:
                         lines.append(f"      - {prod}")
                 else:
                     lines.append("    - No contig-level annotations available for this hit.")
+                go_terms = contig_go_cache.get(mag_id, {}).get(contig) if contig_go_cache else None
+                if go_terms:
+                    lines.append("    - GO term highlights:")
+                    for go_line in summarize_go_terms(go_terms):
+                        lines.append(f"      - {go_line}")
             lines.append("")
 
     # Community-level aggregation of ECs and COGs, weighted by MAG abundance
@@ -1473,6 +1576,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--metabarcoding-mapping",
         default="metabarcoding_to_MAG_mapping.csv",
         help="Path to metabarcoding-to-MAG mapping CSV (if available).",
+    )
+    report_parser.add_argument(
+        "--eggnog-annotations",
+        default=None,
+        help=(
+            "Optional eggNOG-mapper annotations TSV. When provided, GO terms are "
+            "summarized for each contig hit in the ASV sections."
+        ),
     )
     report_parser.add_argument(
         "--output",

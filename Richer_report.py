@@ -274,7 +274,24 @@ def summarize_eggnog_annotations(path: Path) -> List[str]:
     if not path or not path.exists():
         return lines
 
-    df = pd.read_csv(path, sep="\t")
+    header: Optional[str] = None
+    data_lines: List[str] = []
+    with path.open() as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            if line.startswith("##"):
+                continue
+            if line.startswith("#"):
+                header = line.lstrip("#").strip()
+                continue
+            data_lines.append(line)
+
+    if not header:
+        return lines
+
+    buffer = io.StringIO(header + "\n" + "".join(data_lines))
+    df = pd.read_csv(buffer, sep="\t")
 
     ko_col = detect_id_column(df, ["KEGG_ko", "kegg_ko", "KO"])
     go_col = detect_id_column(df, ["GOs", "gos", "GO_terms"])
