@@ -110,7 +110,17 @@ python cosmic_sidekick.py run --mags-dir Data --metabarcoding your_metabarcoding
 or, relying on `config.yaml`:
 
 ```bash
-  python cosmic_sidekick.py run --config config.yaml --output-dir run_<MAGs>_<experiment>
+python cosmic_sidekick.py run --config config.yaml --output-dir run_<MAGs>_<experiment>
+```
+
+To generate the ASV-centric report (optionally with eggNOG GO highlights when you
+already have `eggNOG_output/eggnog.emapper.annotations`):
+
+```bash
+python cosmic_sidekick.py report \
+  --config config.yaml \
+  --output-dir run_<MAGs>_<experiment> \
+  --eggnog-annotations run_<MAGs>_<experiment>/eggNOG_output/eggnog.emapper.annotations
 ```
 
 Command-line arguments override values in `config.yaml`.
@@ -128,14 +138,14 @@ Running the full pipeline produces (under the chosen output directory):
   - kingdom, product,
   - extracted nucleotide sequence.
 - `barrnap_rrna_sequences.fasta` – FASTA of all extracted rRNA sequences with stable IDs.
-- `metabarcoding_to_MAG_mapping.csv` – rows mapping metabarcoding sequences to MAG rRNA hits.
+- `metabarcoding_to_MAG_mapping.csv` – rows mapping metabarcoding sequences to MAG rRNA hits:
   - metabarcoding ID and sequence,
   - MAG ID and rRNA info,
   - percent identity,
   - all per-sample abundance columns carried through.
-  - `Annotation/<MAG_ID>/` – Prokka outputs for each MAG that has at least one metabarcoding hit.
-- `eggNOG_output/` – (optional) results from `Richer_report.py --run-eggnog` when
-  eggNOG-mapper is installed and its databases available.
+- `Annotation/<MAG_ID>/` – Prokka outputs for each MAG that has at least one metabarcoding hit.
+- `eggNOG_output/` – (optional) results from `cosmic_sidekick.py report --eggnog-annotations`
+  or `Richer_report.py --run-eggnog` when eggNOG-mapper is installed and its databases available.
 - `cosmic_stage_status.json` – stage-by-stage status log (`rrna_extraction`,
   `mapping`, `annotation`) for the run’s output directory.
 - `cosmic_llm_report.md` – LLM-ready markdown report summarizing:

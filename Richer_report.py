@@ -338,7 +338,7 @@ def summarize_eggnog_annotations(path: Path) -> List[str]:
 
 def run_dram(
     mags_dir: Path,
-    out_dir: Path,
+    work_dir: Path,
     threads: int,
 ) -> Tuple[Optional[Path], Optional[Path]]:
     """
@@ -357,8 +357,8 @@ def run_dram(
         return None, None
 
     mags_dir = mags_dir.resolve()
-    out_dir = out_dir.resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = work_dir.resolve()
+    work_dir.mkdir(parents=True, exist_ok=True)
 
     annotate_cmd = [
         exe,
@@ -366,7 +366,7 @@ def run_dram(
         "-i",
         str(mags_dir),
         "-o",
-        str(out_dir),
+        str(work_dir),
         "--threads",
         str(threads),
     ]
@@ -374,7 +374,7 @@ def run_dram(
     if not run_command(annotate_cmd):
         return None, None
 
-    annotations_tsv = out_dir / "annotations.tsv"
+    annotations_tsv = work_dir / "annotations.tsv"
     if not annotations_tsv.exists():
         print(
             f"[Richer_report] DRAM annotations.tsv not found in {out_dir}; "
@@ -383,7 +383,7 @@ def run_dram(
         )
         return None, None
 
-    distill_dir = out_dir / "distill"
+    distill_dir = work_dir / "distill"
     distill_cmd = [
         exe,
         "distill",
@@ -408,7 +408,7 @@ def run_dram(
 
 def run_metabolic(
     mags_dir: Path,
-    out_dir: Path,
+    work_dir: Path,
     threads: int,
 ) -> Optional[Path]:
     """
@@ -426,10 +426,10 @@ def run_metabolic(
         return None
 
     mags_dir = mags_dir.resolve()
-    out_dir = out_dir.resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = work_dir.resolve()
+    work_dir.mkdir(parents=True, exist_ok=True)
 
-    genome_list = out_dir / "METABOLIC_genomes.txt"
+    genome_list = work_dir / "METABOLIC_genomes.txt"
     mag_files = sorted(
         p
         for p in mags_dir.iterdir()
@@ -452,7 +452,7 @@ def run_metabolic(
         "-in-gn",
         str(genome_list),
         "-o",
-        str(out_dir),
+        str(work_dir),
         "-t",
         str(threads),
     ]
@@ -461,12 +461,12 @@ def run_metabolic(
         return None
 
     # Try to find a summary TSV; METABOLIC naming conventions may vary slightly.
-    candidate = out_dir / "METABOLIC_result_summary.tsv"
+    candidate = work_dir / "METABOLIC_result_summary.tsv"
     if candidate.exists():
         return candidate
 
     # Fallback: first TSV file with 'summary' in the name.
-    for p in out_dir.glob("*.tsv"):
+    for p in work_dir.glob("*.tsv"):
         if "summary" in p.name.lower():
             return p
 
@@ -479,7 +479,7 @@ def run_metabolic(
 
 def run_eggnog_mapper(
     annotation_dir: Path,
-    out_dir: Path,
+    work_dir: Path,
     threads: int,
 ) -> Optional[Path]:
     """
@@ -496,8 +496,8 @@ def run_eggnog_mapper(
         return None
 
     annotation_dir = annotation_dir.resolve()
-    out_dir = out_dir.resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = work_dir.resolve()
+    work_dir.mkdir(parents=True, exist_ok=True)
 
     faa_files = sorted(annotation_dir.glob("*/*.faa"))
     if not faa_files:
@@ -508,13 +508,13 @@ def run_eggnog_mapper(
         )
         return None
 
-    combined_faa = out_dir / "eggnog_all_proteins.faa"
+    combined_faa = work_dir / "eggnog_all_proteins.faa"
     with combined_faa.open("w") as out_fh:
         for faa in faa_files:
             with faa.open() as in_fh:
                 out_fh.write(in_fh.read())
 
-    prefix = out_dir / "eggnog"
+    prefix = work_dir / "eggnog"
     cmd = [
         exe,
         "-i",
@@ -640,6 +640,14 @@ def build_parser() -> argparse.ArgumentParser:
         default="cosmic_llm_rich_report.md",
         help="Output markdown file (default: cosmic_llm_rich_report.md).",
     )
+    parser.add_argument(
+        "--extras-dir",
+        default=None,
+        help=(
+            "Directory for tool outputs (DRAM/METABOLIC/eggNOG). Defaults to the "
+            "parent directory of the output report."
+        ),
+    )
     return parser
 
 
@@ -649,13 +657,15 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     base_path = Path(args.base_report)
     out_path = Path(args.output)
+    extras_dir = Path(args.extras_dir).resolve() if args.extras_dir else out_path.parent.resolve()
+    extras_dir.mkdir(parents=True, exist_ok=True)
 
     mags_dir = Path(args.mags_dir)
     annotation_dir = Path(args.annotation_dir)
 
     # Optionally run external tools to generate functional summaries.
     if args.run_dram:
-        dram_out = Path("DRAM_output")
+        dram_out = extras_dir / "DRAM_output"
         g_sum, m_sum = run_dram(mags_dir, dram_out, args.threads)
         if g_sum is not None:
             args.dram_genome_summary = str(g_sum)
@@ -663,13 +673,13 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             args.dram_metabolism_summary = str(m_sum)
 
     if args.run_metabolic:
-        metabolic_out = Path("METABOLIC_output")
+        metabolic_out = extras_dir / "METABOLIC_output"
         meta_sum = run_metabolic(mags_dir, metabolic_out, args.threads)
         if meta_sum is not None:
             args.metabolic_summary = str(meta_sum)
 
     if args.run_eggnog:
-        eggnog_out = Path("eggNOG_output")
+        eggnog_out = extras_dir / "eggNOG_output"
         eggnog_ann = run_eggnog_mapper(annotation_dir, eggnog_out, args.threads)
         if eggnog_ann is not None:
             args.eggnog_annotations = str(eggnog_ann)
