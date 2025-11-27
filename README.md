@@ -22,6 +22,19 @@ Install Python dependencies (tested with Python 3.12):
 pip install -r requirements.txt
 ```
 
+Recommended conda-based setup:
+
+```bash
+conda create -n cosmic_sidekick_env python=3.12 -y
+conda activate cosmic_sidekick_env
+
+# Python deps for CoSMIC Sidekick
+pip install -r requirements.txt
+
+# External tools via Bioconda (see below)
+conda install -c bioconda barrnap minimap2 prokka eggnog-mapper
+```
+
 ### External tools
 
 The script expects the following tools to be available on your `PATH`:
@@ -221,6 +234,60 @@ Running the full pipeline produces (under the chosen output directory):
      --threads 8 \
      --output run_<MAGs>_<CoSMIC_experiment>/cosmic_llm_rich_report.md
    ```
+
+## 7. Example: end-to-end run with rich eggNOG report
+
+Assuming you are in a conda env where:
+
+- `pip install -r requirements.txt` has been run, and
+- `barrnap`, `minimap2`, `prokka`, and `eggNOG-mapper` (`emapper.py`) are on `PATH`,
+
+you can run a full CoSMIC + richer report workflow like this:
+
+```bash
+# 1) choose an output directory for this run
+OUTDIR=run_<MAGs>_<CoSMIC_experiment>
+
+# 2) full CoSMIC pipeline (Barrnap + mapping + Prokka)
+python cosmic_sidekick.py run \
+  --config config.yaml \
+  --output-dir "$OUTDIR"
+
+# 3) base LLM-ready composition report
+python cosmic_sidekick.py report \
+  --config config.yaml \
+  --output-dir "$OUTDIR"
+
+# 4) richer report: run eggNOG-mapper on Prokka proteins and append summaries
+python Richer_report.py \
+  --base-report "$OUTDIR/cosmic_llm_report.md" \
+  --mags-dir Data \
+  --annotation-dir "$OUTDIR/Annotation" \
+  --run-eggnog \
+  --threads 8 \
+  --output "$OUTDIR/cosmic_llm_rich_report.md"
+```
+
+If your eggNOG databases live in a separate location (for example from a
+previous eggNOG-mapper installation), you can point `Richer_report.py`
+at them via environment variables without re-downloading:
+
+```bash
+EGGNOG_DATA_DIR=/path/to/emapperdb \
+EGGNOG_DIAMOND_DB=/path/to/emapperdb/bacteria.dmnd \
+python Richer_report.py \
+  --base-report "$OUTDIR/cosmic_llm_report.md" \
+  --mags-dir Data \
+  --annotation-dir "$OUTDIR/Annotation" \
+  --run-eggnog \
+  --threads 8 \
+  --output "$OUTDIR/cosmic_llm_rich_report.md"
+```
+
+Here `EGGNOG_DATA_DIR` should point at the directory containing the
+eggNOG-mapper data files, and `EGGNOG_DIAMOND_DB` at the specific
+DIAMOND database file you want to use (for example `bacteria.dmnd`
+or `eggnog_proteins.dmnd`).
 
 ## 6. Notes and extensions
 

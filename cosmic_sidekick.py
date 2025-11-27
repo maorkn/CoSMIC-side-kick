@@ -1364,7 +1364,7 @@ def cmd_report(args: argparse.Namespace) -> None:
 
             lines.append("")
 
-    if has_mapping and not mapping_df.empty:
+    if has_mapping and not mapping_df.empty and "metabarcoding_id" in mapping_df.columns:
         lines.append("## Metabarcoding-to-MAG Links")
         for meta_id, meta_group in mapping_df.groupby("metabarcoding_id"):
             lines.append(f"### Metabarcoding ID {meta_id}")
@@ -1532,8 +1532,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     annotate_test_parser.add_argument(
         "--rrna-mapping",
-        default="barrnap_rrna_mapping.csv",
-        help="Path to existing rRNA mapping CSV (default: barrnap_rrna_mapping.csv).",
+        default=None,
+        help=(
+            "Path to existing rRNA mapping CSV. Defaults to "
+            "<output_dir>/barrnap_rrna_mapping.csv when not provided."
+        ),
     )
     annotate_test_parser.add_argument(
         "--output-dir",
@@ -1564,8 +1567,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     report_parser.add_argument(
         "--rrna-mapping",
-        default="barrnap_rrna_mapping.csv",
-        help="Path to rRNA mapping CSV (default: barrnap_rrna_mapping.csv).",
+        default=None,
+        help=(
+            "Path to rRNA mapping CSV. Defaults to "
+            "<output_dir>/barrnap_rrna_mapping.csv when not provided."
+        ),
     )
     report_parser.add_argument(
         "--annotation-dir",
@@ -1574,8 +1580,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     report_parser.add_argument(
         "--metabarcoding-mapping",
-        default="metabarcoding_to_MAG_mapping.csv",
-        help="Path to metabarcoding-to-MAG mapping CSV (if available).",
+        default=None,
+        help=(
+            "Path to metabarcoding-to-MAG mapping CSV (if available). "
+            "Defaults to <output_dir>/metabarcoding_to_MAG_mapping.csv."
+        ),
     )
     report_parser.add_argument(
         "--eggnog-annotations",

@@ -1,6 +1,10 @@
 # Project-specific ignores
 Data/
 Annotation/
+global_data/
+run_*/
+silva/
+eggNOG_output/
 venv/
 .venv/
 barrnap_rrna_mapping.csv
