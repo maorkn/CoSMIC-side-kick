@@ -5,6 +5,8 @@ global_data/
 run_*/
 silva/
 eggNOG_output/
+vsearch-*/
+vsearch
 venv/
 .venv/
 barrnap_rrna_mapping.csv

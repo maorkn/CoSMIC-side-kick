@@ -265,6 +265,59 @@ def summarize_humann_pathways(path: Path) -> List[str]:
     return lines
 
 
+def summarize_silva_best_hits(path: Path) -> List[str]:
+    """
+    Summarize closest SILVA relatives from a TSV produced by
+    summarize_GCA_vs_SILVA.sh, with columns:
+      rrna_uid, identity_fraction, silva_accession, silva_taxonomy
+    """
+    lines: List[str] = []
+    if not path or not path.exists():
+        return lines
+
+    per_mag: Dict[str, Dict[str, object]] = {}
+    with path.open() as fh:
+        for raw in fh:
+            line = raw.strip()
+            if not line:
+                continue
+            parts = line.split("\t")
+            if len(parts) < 4:
+                continue
+            rrna_uid, ident_str, silva_acc, silva_tax = parts[0], parts[1], parts[2], parts[3]
+            try:
+                ident = float(ident_str)
+            except ValueError:
+                continue
+            mag_id = rrna_uid.split("|", 1)[0]
+            prev = per_mag.get(mag_id)
+            if prev is None or ident > prev["identity"]:
+                per_mag[mag_id] = {
+                    "identity": ident,
+                    "silva_acc": silva_acc,
+                    "silva_tax": silva_tax,
+                }
+
+    if not per_mag:
+        return lines
+
+    lines.append("## Additional Taxonomic Context: SILVA rRNA Closest Relatives")
+    lines.append(
+        "Closest SILVA rRNA matches per MAG (based on best rRNA hit):"
+    )
+    for mag_id in sorted(per_mag.keys()):
+        entry = per_mag[mag_id]
+        ident = float(entry["identity"])
+        silva_acc = str(entry["silva_acc"])
+        silva_tax = str(entry["silva_tax"])
+        lines.append(
+            f"- {mag_id}: {ident*100:.1f}% identity to {silva_acc} – {silva_tax}"
+        )
+
+    lines.append("")
+    return lines
+
+
 def summarize_eggnog_annotations(path: Path) -> List[str]:
     """
     Summarize eggNOG-mapper annotations from a combined TSV with columns like:
@@ -628,6 +681,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional HUMAnN pathway abundance TSV.",
     )
     parser.add_argument(
+        "--silva-best-hits",
+        default=None,
+        help=(
+            "Optional SILVA closest-relative table (TSV) produced by "
+            "summarize_GCA_vs_SILVA.sh; used to append per-MAG closest SILVA "
+            "rRNA relatives to the rich report."
+        ),
+    )
+    parser.add_argument(
         "--eggnog-annotations",
         default=None,
         help=(
@@ -702,6 +764,10 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     if args.humann_pathway_abundance:
         lines.append("")
         lines.extend(summarize_humann_pathways(Path(args.humann_pathway_abundance)))
+
+    if args.silva_best_hits:
+        lines.append("")
+        lines.extend(summarize_silva_best_hits(Path(args.silva_best_hits)))
 
     if args.eggnog_annotations:
         lines.append("")

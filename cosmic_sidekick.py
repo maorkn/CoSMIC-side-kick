@@ -206,7 +206,16 @@ def extract_rrna_from_mags(
             for rec in SeqIO.parse(handle, "fasta"):
                 seq_records[rec.id] = str(rec.seq).upper()
 
-        gff_hits = run_barrnap_on_mag(mag_path, kingdoms, threads=threads)
+        try:
+            gff_hits = run_barrnap_on_mag(mag_path, kingdoms, threads=threads)
+        except subprocess.CalledProcessError as exc:
+            print(
+                f"[CoSMIC]   Barrnap failed on MAG {mag_id} "
+                f"(exit code {exc.returncode}); skipping this MAG.",
+                file=sys.stderr,
+            )
+            continue
+
         if not gff_hits:
             print(f"[CoSMIC]   Barrnap returned no 16S/18S hits for {mag_id}.")
             continue
@@ -444,6 +453,7 @@ def map_metabarcoding_to_rrna_minimap(
     rrna_fasta_path: Path,
     threads: int,
     minimap_bin: Optional[str] = None,
+    minimap_preset: str = "map-ont",
 ) -> pd.DataFrame:
     query_fasta, query_lookup = _write_metabarcoding_fasta(meta_df, id_col, seq_col)
     try:
@@ -453,7 +463,7 @@ def map_metabarcoding_to_rrna_minimap(
         cmd = [
             minimap_exec,
             "-x",
-            "map-ont",
+            minimap_preset,
             "-t",
             str(max(1, threads)),
             str(rrna_fasta_path),
@@ -556,6 +566,139 @@ def map_metabarcoding_to_rrna_pairwise(
     return pd.DataFrame(mappings)
 
 
+def map_metabarcoding_to_rrna_vsearch(
+    rrna_records: List[RRnaRecord],
+    meta_df: pd.DataFrame,
+    id_col: str,
+    seq_col: str,
+    abundance_cols: List[str],
+    identity_threshold: float,
+    rrna_fasta_path: Path,
+    threads: int,
+) -> pd.DataFrame:
+    """
+    Map metabarcoding ASVs to rRNA features using vsearch --usearch_global.
+
+    Requires vsearch on PATH. Returns a DataFrame similar to the minimap2 mapper.
+    """
+    vsearch_exec = shutil.which("vsearch")
+    if not vsearch_exec:
+        print(
+            "[CoSMIC] vsearch executable not found on PATH; "
+            "falling back to in-Python pairwise identity.",
+            file=sys.stderr,
+        )
+        return map_metabarcoding_to_rrna_pairwise(
+            rrna_records,
+            meta_df,
+            id_col,
+            seq_col,
+            abundance_cols,
+            identity_threshold,
+        )
+
+    if not rrna_fasta_path.exists():
+        print(
+            f"[CoSMIC] rRNA FASTA '{rrna_fasta_path}' not found for vsearch mapping; "
+            "falling back to pairwise identity.",
+            file=sys.stderr,
+        )
+        return map_metabarcoding_to_rrna_pairwise(
+            rrna_records,
+            meta_df,
+            id_col,
+            seq_col,
+            abundance_cols,
+            identity_threshold,
+        )
+
+    query_fasta, query_lookup = _write_metabarcoding_fasta(meta_df, id_col, seq_col)
+    tmp_out = tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False)
+    tmp_out_path = Path(tmp_out.name)
+    tmp_out.close()
+
+    try:
+        cmd = [
+            vsearch_exec,
+            "--usearch_global",
+            str(query_fasta),
+            "--db",
+            str(rrna_fasta_path),
+            "--id",
+            str(identity_threshold),
+            "--strand",
+            "both",
+            "--blast6out",
+            str(tmp_out_path),
+            "--threads",
+            str(max(1, threads)),
+        ]
+        print(f"[CoSMIC] Running vsearch: {' '.join(cmd)}")
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        print(
+            f"[CoSMIC] vsearch failed (exit code {exc.returncode}); "
+            "falling back to pairwise identity.",
+            file=sys.stderr,
+        )
+        return map_metabarcoding_to_rrna_pairwise(
+            rrna_records,
+            meta_df,
+            id_col,
+            seq_col,
+            abundance_cols,
+            identity_threshold,
+        )
+    finally:
+        query_fasta.unlink(missing_ok=True)
+
+    rrna_by_uid = {r.rrna_uid: r for r in rrna_records}
+    hit_map: Dict[Tuple[str, str], Dict] = {}
+
+    with tmp_out_path.open() as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            parts = line.rstrip().split("\t")
+            if len(parts) < 12:
+                continue
+            qname, tname, pid, aln_len, mism, gaps, qstart, qend, sstart, send, evalue, bitscore = parts[:12]
+            try:
+                pid_f = float(pid) / 100.0
+                aligned = int(aln_len)
+            except ValueError:
+                continue
+            if aligned <= 0 or pid_f < identity_threshold:
+                continue
+
+            rrna = rrna_by_uid.get(tname)
+            row = query_lookup.get(qname)
+            if not rrna or not row:
+                continue
+
+            key = (str(row[id_col]), rrna.rrna_uid)
+            existing = hit_map.get(key)
+            if existing and existing["identity"] >= pid_f:
+                continue
+
+            entry: Dict = {
+                "metabarcoding_id": row[id_col],
+                "metabarcoding_sequence": row.get(seq_col, ""),
+                "rrna_uid": rrna.rrna_uid,
+                "mag_id": rrna.mag_id,
+                "sequence_header": rrna.sequence_header,
+                "rrna_type": rrna.rrna_type,
+                "identity": pid_f,
+                "alignment_length": aligned,
+                "matches": int(aligned * pid_f),
+            }
+            for col in abundance_cols:
+                entry[col] = row.get(col, 0.0)
+            hit_map[key] = entry
+
+    tmp_out_path.unlink(missing_ok=True)
+    return pd.DataFrame(hit_map.values())
+
 def map_metabarcoding_to_rrna(
     rrna_records: List[RRnaRecord],
     meta_df: pd.DataFrame,
@@ -566,8 +709,14 @@ def map_metabarcoding_to_rrna(
     rrna_fasta_path: Optional[Path],
     minimap_threads: int,
     minimap_bin: Optional[str] = None,
+    minimap_preset: str = "map-ont",
 ) -> pd.DataFrame:
-    if rrna_fasta_path and rrna_fasta_path.exists():
+    # If explicitly configured to use vsearch, try that first.
+    mapping_tool = "minimap2"
+    # We can't see the config directly here, so rely on minimap_preset naming
+    # only for minimap2. vsearch is selected in run_pipeline below.
+
+    if rrna_fasta_path and rrna_fasta_path.exists() and mapping_tool == "minimap2":
         minimap_exec = None
         if minimap_bin:
             bin_path = Path(minimap_bin)
@@ -593,6 +742,7 @@ def map_metabarcoding_to_rrna(
                     rrna_fasta_path,
                     minimap_threads,
                     minimap_exec,
+                    minimap_preset,
                 )
             except subprocess.CalledProcessError as exc:
                 print(
@@ -852,10 +1002,12 @@ def run_pipeline(args: argparse.Namespace):
     seq_col = config.get("metabarcoding_sequence_column", "sequence")
     abundance_cols = config.get("metabarcoding_abundance_columns")
     identity_threshold = float(config.get("identity_threshold", 0.97))
+    minimap_preset = config.get("minimap2_preset", "map-ont")
     kingdoms = config.get("barrnap_kingdoms", ["bac", "arc", "euk"])
     barrnap_threads = int(config.get("barrnap_threads") or os.cpu_count() or 1)
     minimap_threads = int(config.get("minimap_threads") or os.cpu_count() or 1)
     minimap_bin = config.get("minimap2_bin")
+    mapping_tool = config.get("mapping_tool", "minimap2").lower()
     annotation_tool = config.get("annotation_tool", "prokka")
     annotation_output_cfg = Path(config.get("annotation_output_dir", "Annotation"))
     if annotation_output_cfg.is_absolute():
@@ -871,6 +1023,8 @@ def run_pipeline(args: argparse.Namespace):
     print(f"[CoSMIC] Identity threshold: {identity_threshold:.2%}")
     print(f"[CoSMIC] Barrnap threads: {barrnap_threads}")
     print(f"[CoSMIC] Minimap2 threads: {minimap_threads}")
+    print(f"[CoSMIC] Minimap2 preset: {minimap_preset}")
+    print(f"[CoSMIC] Mapping tool: {mapping_tool}")
     if minimap_bin:
         print(f"[CoSMIC] Minimap2 binary override: {minimap_bin}")
     mags_dir = mags_dir.resolve()
@@ -961,17 +1115,30 @@ def run_pipeline(args: argparse.Namespace):
         "Aligning metabarcoding sequences to rRNA references.",
     )
     try:
-        mapping_df = map_metabarcoding_to_rrna(
-            rrna_records,
-            meta_df,
-            id_col,
-            seq_col,
-            abundance_cols,
-            identity_threshold,
-            rrna_fasta_path,
-            minimap_threads,
-            minimap_bin,
-        )
+        if mapping_tool == "vsearch":
+            mapping_df = map_metabarcoding_to_rrna_vsearch(
+                rrna_records,
+                meta_df,
+                id_col,
+                seq_col,
+                abundance_cols,
+                identity_threshold,
+                rrna_fasta_path,
+                minimap_threads,
+            )
+        else:
+            mapping_df = map_metabarcoding_to_rrna(
+                rrna_records,
+                meta_df,
+                id_col,
+                seq_col,
+                abundance_cols,
+                identity_threshold,
+                rrna_fasta_path,
+                minimap_threads,
+                minimap_bin,
+                minimap_preset,
+            )
     except Exception as exc:
         record_stage_status(
             output_dir, "mapping", "failed", f"{type(exc).__name__}: {exc}"
@@ -1171,6 +1338,85 @@ def cmd_report(args: argparse.Namespace) -> None:
         mapping_df = pd.DataFrame()
         has_mapping = False
 
+    silva_by_rrna: Dict[str, Dict[str, str]] = {}
+    silva_path_arg = getattr(args, "silva_best_hits", None)
+    if silva_path_arg:
+        silva_path = Path(silva_path_arg)
+        if silva_path.exists():
+            try:
+                silva_df = pd.read_csv(
+                    silva_path,
+                    sep="\t",
+                    header=None,
+                    names=["rrna_uid", "silva_identity", "silva_id", "silva_taxonomy"],
+                )
+                for _, row in silva_df.iterrows():
+                    rrna_uid = str(row["rrna_uid"])
+                    silva_by_rrna[rrna_uid] = {
+                        "silva_id": str(row.get("silva_id", "")),
+                        "silva_taxonomy": str(row.get("silva_taxonomy", "")),
+                        "silva_identity": str(row.get("silva_identity", "")),
+                    }
+            except Exception as exc:
+                print(
+                    f"[CoSMIC] Failed to load SILVA best-hits from {silva_path} "
+                    f"({exc}); continuing without SILVA annotations.",
+                    file=sys.stderr,
+                )
+
+    # Optionally override abundance columns and sample names using the
+    # curated frequencies file (Data/Improtant seq w freq.csv).
+    if has_mapping and "metabarcoding_id" in mapping_df.columns:
+        important_freqs = Path("Data/Improtant seq w freq.csv")
+        if important_freqs.exists():
+            try:
+                freq_df = pd.read_csv(important_freqs)
+                # Detect the ID column in the frequencies file
+                id_col = None
+                for cand in ("metabarcoding_id", "id", "ID"):
+                    if cand in freq_df.columns:
+                        id_col = cand
+                        break
+                if id_col:
+                    if id_col != "metabarcoding_id":
+                        freq_df = freq_df.rename(columns={id_col: "metabarcoding_id"})
+                    freq_abund_cols = [
+                        c
+                        for c in freq_df.columns
+                        if c != "metabarcoding_id"
+                        and pd.api.types.is_numeric_dtype(freq_df[c])
+                    ]
+                    if freq_abund_cols:
+                        # Keep only ID + numeric abundance columns, and merge onto mapping_df
+                        freq_df = freq_df[["metabarcoding_id"] + freq_abund_cols]
+                        # Drop any old abundance columns (e.g. no_20, no_2022, etc.)
+                        old_cols = [
+                            c
+                            for c in mapping_df.columns
+                            if c
+                            in {
+                                "no_20",
+                                "no_2022",
+                                "small_22",
+                                "dying",
+                                "no_23",
+                            }
+                        ]
+                        mapping_df = mapping_df.drop(columns=old_cols, errors="ignore")
+                        mapping_df = mapping_df.merge(
+                            freq_df, on="metabarcoding_id", how="left"
+                        )
+                        # Replace any missing abundances with zero
+                        mapping_df[freq_abund_cols] = mapping_df[freq_abund_cols].fillna(
+                            0.0
+                        )
+            except Exception as exc:
+                print(
+                    f"[CoSMIC] Failed to merge 'Improtant seq w freq.csv' into "
+                    f"metabarcoding mapping ({exc}); using original abundances.",
+                    file=sys.stderr,
+                )
+
     # Aggregate abundances by MAG if mapping is available
     mag_abundance: Dict[str, Dict[str, float]] = {}
     abundance_cols: List[str] = []
@@ -1204,9 +1450,81 @@ def cmd_report(args: argparse.Namespace) -> None:
     lines.append("# CoSMIC Composition Report")
     lines.append("")
 
+    # High-level run summary
+    mag_ids_all = sorted(rrna_df["mag_id"].dropna().unique().tolist())
+    total_mags = len(mag_ids_all)
+    total_rrna = len(rrna_df)
+    total_16s = int((rrna_df.get("rrna_type") == "16S").sum()) if "rrna_type" in rrna_df.columns else 0
+    total_18s = int((rrna_df.get("rrna_type") == "18S").sum()) if "rrna_type" in rrna_df.columns else 0
+
+    asvs_with_hits = 0
+    if has_mapping and "metabarcoding_id" in mapping_df.columns:
+        asvs_with_hits = int(mapping_df["metabarcoding_id"].nunique())
+    mags_with_hits = 0
+    if has_mapping and "mag_id" in mapping_df.columns:
+        mags_with_hits = int(mapping_df["mag_id"].nunique())
+
+    # For detailed sections, restrict to MAGs that actually have at least
+    # one CoSMIC metabarcoding hit when mapping is available, to avoid
+    # confusing entries with "no mapping".
+    if has_mapping and "mag_id" in mapping_df.columns:
+        mag_ids = sorted(mapping_df["mag_id"].dropna().unique().tolist())
+    else:
+        mag_ids = mag_ids_all
+
+    total_asvs = None
+    meta_csv_path = config.get("metabarcoding_csv")
+    meta_id_col = config.get("metabarcoding_id_column")
+    if meta_csv_path and meta_id_col:
+        meta_csv = Path(meta_csv_path)
+        if meta_csv.exists():
+            try:
+                meta_df_total = pd.read_csv(meta_csv)
+                if meta_id_col in meta_df_total.columns:
+                    total_asvs = int(meta_df_total[meta_id_col].nunique())
+            except Exception:
+                total_asvs = None
+
+    stage_status = load_stage_status(output_dir)
+
+    lines.append("## Run Summary")
+    lines.append(f"- MAGs with rRNA mapping entries: {total_mags}")
+    lines.append(
+        f"- Total rRNA features: {total_rrna} "
+        f"({total_16s} × 16S, {total_18s} × 18S)"
+    )
+    if total_asvs is not None:
+        lines.append(
+            f"- ASVs with at least one MAG hit: {asvs_with_hits} / {total_asvs}"
+        )
+    else:
+        lines.append(f"- ASVs with at least one MAG hit: {asvs_with_hits}")
+    lines.append(f"- MAGs with at least one ASV hit: {mags_with_hits}")
+
+    rrna_stage = stage_status.get("rrna_extraction", {})
+    map_stage = stage_status.get("mapping", {})
+    ann_stage = stage_status.get("annotation", {})
+    if rrna_stage or map_stage or ann_stage:
+        lines.append("- Pipeline stages:")
+        if rrna_stage:
+            lines.append(
+                f"  - rRNA extraction: {rrna_stage.get('status', 'unknown')}"
+                + (f" ({rrna_stage.get('details')})" if rrna_stage.get("details") else "")
+            )
+        if map_stage:
+            lines.append(
+                f"  - mapping: {map_stage.get('status', 'unknown')}"
+                + (f" ({map_stage.get('details')})" if map_stage.get("details") else "")
+            )
+        if ann_stage:
+            lines.append(
+                f"  - annotation: {ann_stage.get('status', 'unknown')}"
+                + (f" ({ann_stage.get('details')})" if ann_stage.get("details") else "")
+            )
+    lines.append("")
+
     # MAG metadata section
     lines.append("## MAG Metadata")
-    mag_ids = sorted(rrna_df["mag_id"].dropna().unique().tolist())
     if not mag_ids:
         lines.append("No MAGs found in rRNA mapping.")
     else:
@@ -1384,6 +1702,14 @@ def cmd_report(args: argparse.Namespace) -> None:
                 lines.append(
                     f"  - MAG {mag_id}, contig {contig}, rRNA hit {rrna_uid}, identity {identity:.2%}"
                 )
+                silva_info = silva_by_rrna.get(str(rrna_uid)) if silva_by_rrna else None
+                if silva_info and silva_info.get("silva_id"):
+                    lines.append("    - Closest SILVA SSU:")
+                    lines.append(
+                        f"      - {silva_info['silva_id']} "
+                        f"({silva_info['silva_taxonomy']}) "
+                        f"[identity ~ {silva_info['silva_identity']}]"
+                    )
                 contig_data = contig_annotation_cache.get(mag_id, {}).get(contig)
                 if contig_data and contig_data.get("products"):
                     product_summaries = summarize_contig_products(contig_data["products"])
@@ -1592,6 +1918,15 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Optional eggNOG-mapper annotations TSV. When provided, GO terms are "
             "summarized for each contig hit in the ASV sections."
+        ),
+    )
+    report_parser.add_argument(
+        "--silva-best-hits",
+        default=None,
+        help=(
+            "Optional SILVA best-hits TSV with columns: rrna_uid,identity,silva_id,"
+            "silva_taxonomy. When provided, the closest SILVA SSU match is shown "
+            "for each ASV–rRNA hit."
         ),
     )
     report_parser.add_argument(

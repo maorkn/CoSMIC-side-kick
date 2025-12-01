@@ -1,0 +1,35 @@
+# Configuration for CoSMIC Sidekick using vsearch at 95% identity
+
+mags_dir: Data
+
+metabarcoding_csv: Data/metabarcoding_from_freqs.csv
+metabarcoding_id_column: id
+metabarcoding_sequence_column: sequence
+
+metabarcoding_abundance_columns:
+  - no_20
+  - no_2022
+  - small_22
+  - dying
+  - no_23
+
+identity_threshold: 0.95
+
+barrnap_kingdoms:
+  - bac
+  - arc
+  - euk
+
+barrnap_threads: null
+minimap_threads: null
+
+minimap2_bin: /mnt/c/Users/maork/Documents/Papers/CoSMIC side kick/minimap2/minimap2
+
+annotation_tool: prokka
+annotation_output_dir: Annotation
+
+experiment_metadata_yaml: experiment_metadata.yaml
+
+# Use vsearch instead of minimap2 for ASV-to-rRNA mapping
+mapping_tool: vsearch
+
