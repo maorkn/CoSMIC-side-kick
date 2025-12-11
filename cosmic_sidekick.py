@@ -844,6 +844,73 @@ def summarize_go_terms(go_terms: List[str], max_items: int = 5) -> List[str]:
     return lines
 
 
+def load_eggnog_annotations(path: Path) -> List[Dict[str, List[str]]]:
+    """
+    Parse eggNOG-mapper annotations and return a list of dicts with
+    query/locus ID and extracted KEGG KOs, ECs, and GO terms.
+    """
+    results: List[Dict[str, List[str]]] = []
+    if not path or not path.exists():
+        return results
+
+    header: Optional[str] = None
+    data_lines: List[str] = []
+    with path.open() as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            if line.startswith("##"):
+                continue
+            if line.startswith("#"):
+                header = line.lstrip("#").strip()
+                continue
+            data_lines.append(line)
+
+    if not header:
+        return results
+
+    buffer = io.StringIO(header + "\n" + "".join(data_lines))
+    df = pd.read_csv(buffer, sep="\t")
+
+    query_col = detect_id_column(df, ["query", "protein", "locus_tag"])
+    kegg_col = detect_id_column(df, ["KEGG_ko", "KEGG_KO", "KOs"])
+    ec_col = detect_id_column(df, ["EC", "ec_number"])
+    go_col = detect_id_column(df, ["GOs", "gos", "GO_terms"])
+
+    for _, row in df.iterrows():
+        query = str(row.get(query_col, "")).strip() if query_col else ""
+        if not query:
+            continue
+        entry: Dict[str, List[str]] = {"query": query}
+        if kegg_col and kegg_col in df.columns:
+            raw = row.get(kegg_col)
+            if isinstance(raw, str):
+                entry["kegg"] = [
+                    x.strip()
+                    for x in raw.replace(";", ",").split(",")
+                    if x.strip() and x.strip() not in {"-", "NA"}
+                ]
+        if ec_col and ec_col in df.columns:
+            raw = row.get(ec_col)
+            if isinstance(raw, str):
+                entry["ec"] = [
+                    x.strip()
+                    for x in raw.replace(";", ",").split(",")
+                    if x.strip() and x.strip() not in {"-", "NA"}
+                ]
+        if go_col and go_col in df.columns:
+            raw = row.get(go_col)
+            if isinstance(raw, str):
+                entry["go"] = [
+                    x.strip()
+                    for x in raw.replace(";", ",").split(",")
+                    if x.strip() and x.strip() not in {"-", "NA"}
+                ]
+        results.append(entry)
+
+    return results
+
+
 def load_eggnog_go_terms(path: Path) -> Dict[str, List[str]]:
     go_map: Dict[str, List[str]] = {}
     if not path or not path.exists():
@@ -1446,6 +1513,13 @@ def cmd_report(args: argparse.Namespace) -> None:
     # For community-level aggregation
     all_mag_ec: Dict[str, Dict[str, int]] = {}
     all_mag_cog: Dict[str, Dict[str, int]] = {}
+    # For MAG-level fallbacks when rRNA contig lacks CDS annotations
+    mag_product_summaries: Dict[str, List[str]] = {}
+    mag_ec_summaries: Dict[str, List[str]] = {}
+    mag_cog_summaries: Dict[str, List[str]] = {}
+    mag_eggnog_kegg_summaries: Dict[str, List[str]] = {}
+    mag_eggnog_ec_summaries: Dict[str, List[str]] = {}
+    mag_eggnog_go_summaries: Dict[str, List[str]] = {}
 
     lines.append("# CoSMIC Composition Report")
     lines.append("")
@@ -1561,10 +1635,12 @@ def cmd_report(args: argparse.Namespace) -> None:
             global_locus_lookup[locus] = (mag_id, contig)
 
     eggnog_go_map: Dict[str, List[str]] = {}
+    eggnog_ann_rows: List[Dict[str, List[str]]] = []
     if args.eggnog_annotations:
         eggnog_path = Path(args.eggnog_annotations)
         if eggnog_path.exists():
             eggnog_go_map = load_eggnog_go_terms(eggnog_path)
+            eggnog_ann_rows = load_eggnog_annotations(eggnog_path)
 
     contig_go_cache: Dict[str, Dict[str, List[str]]] = {}
     if eggnog_go_map and global_locus_lookup:
@@ -1580,6 +1656,39 @@ def cmd_report(args: argparse.Namespace) -> None:
             mag_id: {contig: gos for contig, gos in contig_map.items()}
             for mag_id, contig_map in tmp_cache.items()
         }
+
+    # MAG-level eggNOG summaries (KOs/ECs/GO) for use when contig lacks annotations
+    if eggnog_ann_rows and global_locus_lookup:
+        mag_kegg_counts: Dict[str, Counter] = defaultdict(Counter)
+        mag_ec_counts_eggnog: Dict[str, Counter] = defaultdict(Counter)
+        mag_go_counts: Dict[str, Counter] = defaultdict(Counter)
+        for entry in eggnog_ann_rows:
+            locus = entry.get("query")
+            if not locus:
+                continue
+            target = global_locus_lookup.get(locus)
+            if not target:
+                continue
+            mag_id, _ = target
+            for k in entry.get("kegg", []):
+                mag_kegg_counts[mag_id][k] += 1
+            for ec in entry.get("ec", []):
+                mag_ec_counts_eggnog[mag_id][ec] += 1
+            for go in entry.get("go", []):
+                mag_go_counts[mag_id][go] += 1
+
+        for mag_id, counter in mag_kegg_counts.items():
+            mag_eggnog_kegg_summaries[mag_id] = [
+                f"{k} (n={cnt})" for k, cnt in counter.most_common(5)
+            ]
+        for mag_id, counter in mag_ec_counts_eggnog.items():
+            mag_eggnog_ec_summaries[mag_id] = [
+                f"{ec} (n={cnt})" for ec, cnt in counter.most_common(5)
+            ]
+        for mag_id, counter in mag_go_counts.items():
+            mag_eggnog_go_summaries[mag_id] = [
+                f"{go} (n={cnt})" for go, cnt in counter.most_common(5)
+            ]
 
     # Experiment metadata
     lines.append("## CoSMIC Experiment Metadata")
@@ -1628,6 +1737,9 @@ def cmd_report(args: argparse.Namespace) -> None:
                     .head(10)
                     .to_dict()
                 )
+                mag_product_summaries[mag_id] = [
+                    f"{prod} (n={count})" for prod, count in product_counts.items()
+                ]
                 if product_counts:
                     lines.append("- Most frequent annotated products:")
                     for prod, count in product_counts.items():
@@ -1662,18 +1774,22 @@ def cmd_report(args: argparse.Namespace) -> None:
 
                 if mag_ec_counts:
                     lines.append("- Top EC numbers (by CDS count):")
-                    for ec, count in sorted(
+                    sorted_ec = sorted(
                         mag_ec_counts.items(), key=lambda kv: kv[1], reverse=True
-                    )[:10]:
+                    )[:10]
+                    mag_ec_summaries[mag_id] = [f"{ec} (n={count})" for ec, count in sorted_ec]
+                    for ec, count in sorted_ec:
                         lines.append(f"  - {ec} (n={count})")
                 else:
                     lines.append("- No EC annotations available for this MAG.")
 
                 if mag_cog_counts:
                     lines.append("- Top COGs (by CDS count):")
-                    for cog, count in sorted(
+                    sorted_cog = sorted(
                         mag_cog_counts.items(), key=lambda kv: kv[1], reverse=True
-                    )[:10]:
+                    )[:10]
+                    mag_cog_summaries[mag_id] = [f"{cog} (n={count})" for cog, count in sorted_cog]
+                    for cog, count in sorted_cog:
                         lines.append(f"  - {cog} (n={count})")
                 else:
                     lines.append("- No COG annotations available for this MAG.")
@@ -1717,7 +1833,33 @@ def cmd_report(args: argparse.Namespace) -> None:
                     for prod in product_summaries:
                         lines.append(f"      - {prod}")
                 else:
-                    lines.append("    - No contig-level annotations available for this hit.")
+                    lines.append(
+                        "    - No contig-level annotations available for this hit; showing MAG-level highlights instead."
+                    )
+                    if mag_product_summaries.get(mag_id):
+                        lines.append("    - MAG products (top):")
+                        for prod in mag_product_summaries[mag_id][:5]:
+                            lines.append(f"      - {prod}")
+                    if mag_ec_summaries.get(mag_id):
+                        lines.append("    - MAG EC numbers (top):")
+                        for ec in mag_ec_summaries[mag_id][:5]:
+                            lines.append(f"      - {ec}")
+                    if mag_cog_summaries.get(mag_id):
+                        lines.append("    - MAG COGs (top):")
+                        for cog in mag_cog_summaries[mag_id][:5]:
+                            lines.append(f"      - {cog}")
+                    if mag_eggnog_kegg_summaries.get(mag_id):
+                        lines.append("    - MAG eggNOG KEGG KOs (top):")
+                        for ko in mag_eggnog_kegg_summaries[mag_id][:5]:
+                            lines.append(f"      - {ko}")
+                    if mag_eggnog_ec_summaries.get(mag_id):
+                        lines.append("    - MAG eggNOG ECs (top):")
+                        for ec in mag_eggnog_ec_summaries[mag_id][:5]:
+                            lines.append(f"      - {ec}")
+                    if mag_eggnog_go_summaries.get(mag_id):
+                        lines.append("    - MAG eggNOG GOs (top):")
+                        for go in mag_eggnog_go_summaries[mag_id][:5]:
+                            lines.append(f"      - {go}")
                 go_terms = contig_go_cache.get(mag_id, {}).get(contig) if contig_go_cache else None
                 if go_terms:
                     lines.append("    - GO term highlights:")

@@ -40,7 +40,8 @@ conda install -c bioconda barrnap minimap2 prokka eggnog-mapper
 The script expects the following tools to be available on your `PATH`:
 
 - **Barrnap** – for rRNA prediction (16S/18S).
-- **Minimap2** – for high-throughput mapping of metabarcoding sequences to MAG rRNA.
+- **Minimap2** – default high-throughput mapping of metabarcoding sequences to MAG rRNA.
+- **vsearch** – optional alternative mapper for ASV→rRNA mapping and for SILVA-based QA.
 - **Prokka** – for MAG annotation (simpler alternative to Trinotate).
 - **eggNOG-mapper** – optional, for the richer report. You must also download its
   annotation/taxonomy/DIAMOND databases using the bundled `download_eggnog_data.py`.
@@ -54,7 +55,7 @@ Example installation options (pick what matches your environment):
 - Using conda (recommended):
 
   ```bash
-  conda install -c bioconda barrnap minimap2 prokka
+  conda install -c bioconda barrnap minimap2 vsearch prokka
   ```
 
 - Or using your distro’s package manager if available (names may vary):
@@ -83,6 +84,8 @@ The pipeline is configured via `config.yaml`. Key fields:
 - `minimap_threads`: thread count for `minimap2` (null ⇒ auto-detect).
 - `minimap2_bin`: optional explicit path to the `minimap2` executable; leave `null` to
   resolve it from your `PATH`.
+- `minimap2_preset`: optional minimap2 preset (default: `map-ont`; e.g. `asm5` for assembly-to-assembly style mapping).
+- `mapping_tool`: which mapper to use for ASV→rRNA mapping; either `minimap2` (default) or `vsearch`. See `config_95.yaml` and `config_95_vsearch.yaml` for example configurations.
 - `annotation_tool`: currently implemented: `prokka`.
 - `annotation_output_dir`: where MAG annotations are written (default: `Annotation/`).
 - `experiment_metadata_yaml`: path to experiment-level metadata in YAML
@@ -126,14 +129,24 @@ or, relying on `config.yaml`:
 python cosmic_sidekick.py run --config config.yaml --output-dir run_<MAGs>_<experiment>
 ```
 
-To generate the ASV-centric report (optionally with eggNOG GO highlights when you
-already have `eggNOG_output/eggnog.emapper.annotations`):
+To use `vsearch` instead of `minimap2` for ASV→rRNA mapping, set `mapping_tool: vsearch`
+in your config (see `config_95_vsearch.yaml` for an example) and run, e.g.:
+
+```bash
+python cosmic_sidekick.py run \
+  --config config_95_vsearch.yaml \
+  --output-dir run_allMAGs-odSpoOffi2_id95-vsearch
+```
+
+To generate the ASV-centric report (optionally with eggNOG GO highlights and SILVA
+closest-relative information when the corresponding inputs are available):
 
 ```bash
 python cosmic_sidekick.py report \
   --config config.yaml \
   --output-dir run_<MAGs>_<experiment> \
-  --eggnog-annotations run_<MAGs>_<experiment>/eggNOG_output/eggnog.emapper.annotations
+  --eggnog-annotations run_<MAGs>_<experiment>/eggNOG_output/eggnog.emapper.annotations \
+  --silva-best-hits run_<MAGs>_<experiment>/SILVA_best_hits.tsv
 ```
 
 Command-line arguments override values in `config.yaml`.
@@ -156,6 +169,10 @@ Running the full pipeline produces (under the chosen output directory):
   - MAG ID and rRNA info,
   - percent identity,
   - all per-sample abundance columns carried through.
+  If a curated per-sequence abundance table `Data/Improtant seq w freq.csv` is present
+  (with `metabarcoding_id`/`id` + numeric sample columns), `cosmic_sidekick.py report`
+  will automatically merge those abundances into the report instead of the raw ones
+  from the original metabarcoding CSV.
 - `Annotation/<MAG_ID>/` – Prokka outputs for each MAG that has at least one metabarcoding hit.
 - `eggNOG_output/` – (optional) results from `cosmic_sidekick.py report --eggnog-annotations`
   or `Richer_report.py --run-eggnog` when eggNOG-mapper is installed and its databases available.
@@ -166,10 +183,20 @@ Running the full pipeline produces (under the chosen output directory):
   - CoSMIC experiment metadata from `experiment_metadata.yaml`,
   - per-MAG relative abundances (from `metabarcoding_to_MAG_mapping.csv`),
   - per-MAG and community-level functional summaries (products, EC numbers, COGs).
+  When `--silva-best-hits` is provided, each ASV–rRNA hit is also annotated with its
+  closest SILVA SSU match and identity.
 
 ## 5. Typical workflow
 
 1. Place your MAG assemblies in `Data/` as `.fasta` or `.fasta.gz` (one MAG per file).
+   If you have a single combined file such as `Data/all_MAGs.fasta.gz` (e.g. from ENA/NCBI),
+   you can split it into per-MAG FASTAs using:
+
+   ```bash
+   ./split_all_MAGs.sh
+   ```
+
+   which writes `Data/MAG_*.fasta.gz`.
 2. Prepare your metabarcoding CSV (full-length 16S/18S, relative abundances per sample).
 3. Edit `config.yaml` so `metabarcoding_csv`, `metabarcoding_id_column`,
    `metabarcoding_sequence_column`, and (optionally) `metabarcoding_abundance_columns`
@@ -198,6 +225,25 @@ Running the full pipeline produces (under the chosen output directory):
 
    This writes `run_<MAGs>_<CoSMIC_experiment>/cosmic_llm_report.md`,
    which you can feed directly as context to an LLM.
+
+8. (Optional) Attach SILVA-based nearest-neighbour information for QA of unassigned
+   or weakly assigned taxa. First, compute best SILVA SSU hits for each rRNA:
+
+   ```bash
+   ./rrna_vs_SILVA_vsearch.sh \
+     run_<MAGs>_<CoSMIC_experiment> \
+     silva/SILVA_138_SSURef_tax_silva.fasta \
+     run_<MAGs>_<CoSMIC_experiment>/SILVA_best_hits.tsv
+   ```
+
+   Then regenerate the report with SILVA annotations included:
+
+   ```bash
+   python cosmic_sidekick.py report \
+     --config config.yaml \
+     --output-dir run_<MAGs>_<CoSMIC_experiment> \
+     --silva-best-hits run_<MAGs>_<CoSMIC_experiment>/SILVA_best_hits.tsv
+   ```
 
 8. (Optional) Enrich the LLM report with external functional tools:
 
@@ -291,7 +337,9 @@ or `eggnog_proteins.dmnd`).
 
 ## 6. Notes and extensions
 
-- Mapping uses a simple global identity measure (including a fast path for equal-length sequences, and a more general alignment for length mismatches). If your dataset becomes large, we can switch to `vsearch` or `blastn` for faster similarity searches.
+- Mapping uses `minimap2` by default when available, or `vsearch` when `mapping_tool: vsearch`
+  is set in the config. If neither mapper is available, the code falls back to a simple
+  in-Python global identity measure (with a fast path for equal-length sequences).
 - Currently, only Prokka-based annotation is implemented, but the code is structured so another tool (including Trinotate) could be plugged in if needed.
 - The LLM-oriented report currently uses Prokka’s TSV output to summarize:
   - most frequent annotated products per MAG,
@@ -300,3 +348,12 @@ or `eggnog_proteins.dmnd`).
   External tools such as DRAM, METABOLIC, HUMAnN, or eggNOG-mapper can be run
   on the MAGs/ORFs separately, and their pathway or module tables can be
   integrated into the report in a future extension if desired.
+- SILVA-based QA and taxonomic context:
+  - `rrna_vs_SILVA_vsearch.sh` uses `vsearch --usearch_global` to find the closest SILVA
+    SSU match for each CoSMIC rRNA in a given run and writes `SILVA_best_hits.tsv`. Passing
+    this file to `cosmic_sidekick.py report --silva-best-hits` decorates each ASV–rRNA hit
+    with its nearest SILVA neighbour in the markdown report.
+  - `summarize_GCA_vs_SILVA.sh` summarizes a PAF alignment of a reference assembly against a
+    SILVA SSU FASTA into a best-hit table (e.g. `GCA_vs_SILVA_best_hits.tsv`). Supplying this
+    file to `Richer_report.py --silva-best-hits` adds an “Additional Taxonomic Context: SILVA
+    rRNA Closest Relatives” section summarizing per-MAG nearest SILVA matches in the rich report.
