@@ -3,6 +3,7 @@ Data/
 Annotation/
 global_data/
 run_*/
+run_*.zip
 silva/
 eggNOG_output/
 vsearch-*/
@@ -11,6 +12,20 @@ venv/
 .venv/
 barrnap_rrna_mapping.csv
 barrnap_rrna_sequences.fasta
+
+# Local downloaded datasets and tool checkouts
+Agelas_data/
+Oscarella_data/
+Agelas and Oscarella/
+minimap2/
+
+# Local input-discovery scratch files
+agelas_listing.txt
+oscarella_listing.txt
+
+# Local species run configurations
+config_agelas_*.yaml
+config_oscarella_*.yaml
 
 # Common Python artifacts (optional safety)
 __pycache__/
